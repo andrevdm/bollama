@@ -1,0 +1,13 @@
+dist-newstyle/
+.stack-work/
+.stack-work-profiling/
+*#*.hs#
+.vscode/*
+node_modules/
+.discarded.fastq
+__pycache__/
+*.py[cod]
+*$py.class
+*.hie
+lisp.repl.txt
+bollama_static
