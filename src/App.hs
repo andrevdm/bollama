@@ -473,6 +473,29 @@ handleEvent commandChan ev = do
         ---------------------------------------------------------------------------------------------------
         -- NListPs
         ---------------------------------------------------------------------------------------------------
+        (_, _, Just NListPs, Vty.KChar 's', []) -> do
+          B.gets (^?  stPs . BL.listSelectedElementL . to (.modelName)) >>= \case
+            Nothing -> pass
+            Just name -> do
+              _ <- liftIO . O.generate $ O.GenerateOps
+                { modelName = name
+                , keepAlive = Just "0"
+                , prompt = ""
+                , suffix = Nothing
+                , images = Nothing
+                , format = Nothing
+                , system = Nothing
+                , template = Nothing
+                , stream = Nothing
+                , raw = Nothing
+                , hostUrl = Just ollamaUrl
+                , responseTimeOut = Nothing
+                , options = Nothing
+                }
+              stDebug .= "stopping " <> name
+
+          pass
+
         (_, _, Just NListPs, _, _) -> do
           B.zoom stPs $ BL.handleListEventVi BL.handleListEvent ve
         ---------------------------------------------------------------------------------------------------
@@ -567,9 +590,9 @@ parseParams mi =
 
 
 tabName :: Tab -> Text
-tabName TabPs = "Running"
-tabName TabModels = "Models"
-tabName TabChat = "Chat"
+tabName TabModels = "F2: Models"
+tabName TabPs = "F3: Running"
+tabName TabChat = "F4: Chat"
 
 
 
