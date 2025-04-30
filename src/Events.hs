@@ -1,0 +1,356 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE MultiWayIf #-}
+
+module Events
+  ( handleEvent
+  ) where
+
+import           Verset
+
+import Brick ((<+>))
+import Brick.BChan qualified as BCh
+import Brick.Focus qualified as BF
+import Brick qualified as B
+--import Brick.Widgets.Border qualified as BB
+--import Brick.Widgets.Border.Style qualified as BBS
+import Brick.Widgets.Edit qualified as BE
+import Brick.Widgets.List qualified as BL
+import Control.Lens ((^.), (^?), (%=), (.=), use, to, at)
+import Data.Time as DT
+import Data.List (findIndex)
+import Data.Text qualified as Txt
+import Data.Text.Zipper qualified as TxtZ
+import Data.Map.Strict qualified as Map
+import Data.Vector qualified as V
+import Graphics.Vty qualified as Vty
+import Ollama qualified as O
+
+import Core qualified as C
+import Config qualified as Cfg
+import Utils qualified as U
+
+
+---------------------------------------------------------------------------------------------------
+-- Main Event Handler
+---------------------------------------------------------------------------------------------------
+handleEvent :: BCh.BChan C.Command -> B.BrickEvent C.Name C.UiEvent -> B.EventM C.Name C.UiState ()
+handleEvent commandChan ev = do
+  case ev of
+    B.AppEvent ae -> handleAppEvent commandChan ae
+
+    B.VtyEvent ve@(Vty.EvKey k ms) -> do
+      st <- B.get
+      let
+        footerWidgetName = fst <$> st._stFooterWidget
+        focused =
+          case st._stTab of
+            C.TabModels -> BF.focusGetCurrent st._stFocusModels
+            C.TabPs     -> BF.focusGetCurrent st._stFocusPs
+            C.TabChat   -> BF.focusGetCurrent st._stFocusChat
+
+
+      case (st._stTab, footerWidgetName, focused, k, ms) of
+        ---------------------------------------------------------------------------------------------------
+        -- Global
+        ---------------------------------------------------------------------------------------------------
+        (_, _, _, Vty.KChar 'q', [Vty.MCtrl]) -> B.halt
+        ---------------------------------------------------------------------------------------------------
+
+
+        ---------------------------------------------------------------------------------------------------
+        -- Footer widget active
+        ---------------------------------------------------------------------------------------------------
+        (C.TabModels, Just C.NModelEditSearch, _, _, _) -> handleFooterWidgetModelSearch commandChan ev k ms
+        (C.TabModels, Just C.NModelEditTag, _, _, _) -> handleFooterWidgetModelTag commandChan ev k ms
+        ---------------------------------------------------------------------------------------------------
+
+
+        ---------------------------------------------------------------------------------------------------
+        -- Function keys
+        ---------------------------------------------------------------------------------------------------
+        (_, _, _, Vty.KFun 2, []) -> do
+          unless (st._stTab == C.TabModels) $ do
+            C.stLoadingPs .= True
+            C.stTab .= C.TabModels
+
+        (_, _, _, Vty.KFun 3, []) -> do
+          unless (st._stTab == C.TabPs) $ do
+            liftIO . BCh.writeBChan commandChan $ C.CmdRefreshPs
+            C.stLoadingPs .= True
+            C.stTab .= C.TabPs
+
+        (_, _, _, Vty.KFun 4, []) -> do
+          unless (st._stTab == C.TabChat) $ do
+            C.stLoadingPs .= True
+            C.stTab .= C.TabChat
+        ---------------------------------------------------------------------------------------------------
+
+
+        ---------------------------------------------------------------------------------------------------
+        -- Tabs
+        ---------------------------------------------------------------------------------------------------
+        (C.TabModels, _, Just C.NModelsList, _, _) -> handleTabModels commandChan ev ve focused k ms
+        (C.TabPs, _, Just C.NListPs, _, _) -> handleTabPs commandChan ev ve focused k ms
+        ---------------------------------------------------------------------------------------------------
+
+        _ -> pass
+    _ -> pass
+---------------------------------------------------------------------------------------------------
+
+
+
+---------------------------------------------------------------------------------------------------
+-- App Events
+---------------------------------------------------------------------------------------------------
+handleAppEvent :: BCh.BChan C.Command -> C.UiEvent -> B.EventM C.Name C.UiState ()
+handleAppEvent commandChan uev = do
+  case uev of
+    C.UeTick t -> handleAppEventTick commandChan t
+    C.UeGotModelList ms1 -> handleAppEventGotModelList commandChan ms1
+    C.UePsList ps' -> handleAppEventPsList commandChan ps'
+    C.UeGotModelShow x -> handleAppEventGotModelShow commandChan x
+    C.UeModelShowDone -> handleAppEventModelShowDone commandChan
+    C.UeGotTime t -> handleAppEventGotTime commandChan t
+
+
+
+handleAppEventTick :: BCh.BChan C.Command -> Int -> B.EventM C.Name C.UiState ()
+handleAppEventTick commandChan t = do
+  C.stTick .= t
+  currentTab <- use C.stTab
+
+  when (t `mod` 50 == 0 && currentTab == C.TabPs) $ do
+    liftIO (BCh.writeBChan commandChan C.CmdRefreshPs)
+
+
+handleAppEventGotModelList :: BCh.BChan C.Command -> [O.ModelInfo] -> B.EventM C.Name C.UiState ()
+handleAppEventGotModelList commandChan ms1 = do
+  cfg <- use C.stAppConfig
+  let ms2 = ms1
+  let ms = ms2 <&> \m -> C.ModelItem
+        { miName = m.name
+        , miInfo = m
+        , miShow = Nothing
+        , miTag = fromMaybe "" $ cfg.acModelTag ^. at m.name
+        }
+
+  C.stModels .= ms
+  filteredModels <- filterModels
+  C.stModelsList %= BL.listReplace (V.fromList filteredModels) Nothing
+  C.stModelListLoading .= False
+
+  C.stModelShowLoading .= True
+  liftIO . BCh.writeBChan commandChan $ C.CmdRefreshModelShow (ms <&> C.miName)
+
+
+handleAppEventPsList :: BCh.BChan C.Command -> [O.RunningModel] -> B.EventM C.Name C.UiState ()
+handleAppEventPsList _commandChan ps' = do
+  let ps = sortOn (.modelName) ps'
+  psl <- use C.stPs
+  let wasSelected = fromMaybe "" $ (.modelName) . snd <$> BL.listSelectedElement psl
+  C.stPs .= BL.listFindBy (\i -> i.modelName == wasSelected) (BL.list C.NModelsList (V.fromList ps) 1)
+  C.stLoadingPs .= False
+
+
+handleAppEventGotModelShow :: BCh.BChan C.Command -> (Text, O.ShowModelResponse) -> B.EventM C.Name C.UiState ()
+handleAppEventGotModelShow _commandChan (m, s) = do
+  vs1 <- use C.stModels
+  let
+    ix = findIndex (\x -> x.miName == m) vs1
+    vs2 = vs1 <&> \old ->
+      if old.miName == m
+        then old { C.miShow = Just s }
+        else old
+
+  C.stModels .= vs2
+  filteredModels <- filterModels
+  C.stModelsList %= BL.listReplace (V.fromList filteredModels) ix
+
+
+handleAppEventModelShowDone :: BCh.BChan C.Command -> B.EventM C.Name C.UiState ()
+handleAppEventModelShowDone _commandChan = do
+  l1 <- use C.stModelsList
+  let
+    selected = snd <$> BL.listSelectedElement l1
+    selectedName = (.miName) <$> selected
+    vs1 = V.toList $ BL.listElements l1
+    vs2 = reverse $ sortOn U.parseParams vs1
+    ix = findIndex (\x -> Just x.miName == selectedName) vs2
+
+  C.stModels .= vs2
+  filteredModels <- filterModels
+  C.stModelsList %= BL.listReplace (V.fromList filteredModels) ix
+  C.stModelShowLoading .= False
+
+
+handleAppEventGotTime :: BCh.BChan C.Command -> DT.UTCTime -> B.EventM C.Name C.UiState ()
+handleAppEventGotTime _commandChan t = do
+  C.stTime .= t
+---------------------------------------------------------------------------------------------------
+
+
+
+
+
+---------------------------------------------------------------------------------------------------
+-- Footer Events
+---------------------------------------------------------------------------------------------------
+handleFooterWidgetModelSearch
+  :: BCh.BChan C.Command
+  -> B.BrickEvent C.Name C.UiEvent
+  -> Vty.Key
+  -> [Vty.Modifier]
+  -> B.EventM C.Name C.UiState ()
+handleFooterWidgetModelSearch _commandChan ev k ms =
+  case (k, ms) of
+    (Vty.KEsc, []) -> do
+      C.stFooterWidget .= Nothing
+
+    (Vty.KEnter, []) -> do
+      txt <- use (C.stModelFilterEditor . BE.editContentsL . to TxtZ.getText)
+      C.stModelsFilter .= Txt.unlines txt
+      C.stFooterWidget .= Nothing
+      filteredModels <- filterModels
+      wasSelected <- B.gets (^?  C.stModelsList . BL.listSelectedElementL . to C.miName)
+      let ix = findIndex (\x -> Just x.miName == wasSelected) filteredModels
+      C.stModelsList %= BL.listReplace (V.fromList filteredModels) ix
+
+    (_, _) -> do
+      B.zoom C.stModelFilterEditor $ BE.handleEditorEvent ev
+
+
+
+handleFooterWidgetModelTag
+  :: BCh.BChan C.Command
+  -> B.BrickEvent C.Name C.UiEvent
+  -> Vty.Key
+  -> [Vty.Modifier]
+  -> B.EventM C.Name C.UiState ()
+handleFooterWidgetModelTag _commandChan ev k ms =
+  case (k, ms) of
+    (Vty.KEsc, []) -> do
+      C.stFooterWidget .= Nothing
+
+    (Vty.KEnter, []) -> do
+      B.gets (^?  C.stModelsList . BL.listSelectedElementL . to C.miName) >>= \case
+        Nothing -> pass
+        Just selected -> do
+          txt <- use (C.stModelTagEditor . BE.editContentsL . to TxtZ.getText)
+          C.stAppConfig %= \cfg ->
+            cfg { C.acModelTag = Map.insert selected (Txt.unlines txt) cfg.acModelTag }
+          liftIO . Cfg.writeAppConfig =<< use C.stAppConfig
+
+      C.stModelTagEditor . BE.editContentsL %= TxtZ.clearZipper
+      C.stFooterWidget .= Nothing
+
+    (_, _) -> do
+      B.zoom C.stModelTagEditor $ BE.handleEditorEvent ev
+---------------------------------------------------------------------------------------------------
+
+
+
+---------------------------------------------------------------------------------------------------
+-- Models Tab Events
+---------------------------------------------------------------------------------------------------
+handleTabModels
+  :: BCh.BChan C.Command
+  -> B.BrickEvent C.Name C.UiEvent
+  -> Vty.Event
+  -> Maybe C.Name
+  -> Vty.Key
+  -> [Vty.Modifier]
+  -> B.EventM C.Name C.UiState ()
+handleTabModels _commandChan _ev ve focused k ms =
+  case (focused, k, ms) of
+    (Just C.NModelsList, Vty.KChar '/', []) -> do
+      C.stFooterWidget .= Just (C.NModelEditSearch, \st2 -> (B.withAttr (B.attrName "footerTitle") $ B.txt "filter: ") <+> BE.renderEditor (B.txt . Txt.unlines) True st2._stModelFilterEditor)
+
+    (Just C.NModelsList, Vty.KChar 't', []) -> do
+      cfg <- use C.stAppConfig
+      tags <-
+        B.gets (^?  C.stModelsList . BL.listSelectedElementL . to C.miName) >>= \case
+          Nothing -> pure ""
+          Just selected -> do
+            pure . fromMaybe "" $ Map.lookup selected cfg.acModelTag
+
+      C.stModelTagEditor .= BE.editorText C.NModelEditTag (Just 1) tags
+      C.stFooterWidget .= Just (C.NModelEditTag, \st2 -> (B.withAttr (B.attrName "footerTitle") $ B.txt "tag: ") <+> BE.renderEditor (B.txt . Txt.unlines) True st2._stModelTagEditor)
+
+    (Just C.NModelsList, _, _) -> do
+      B.zoom C.stModelsList $ BL.handleListEventVi BL.handleListEvent ve
+
+    _ -> pass
+---------------------------------------------------------------------------------------------------
+
+
+
+---------------------------------------------------------------------------------------------------
+-- Ps Tab Events
+---------------------------------------------------------------------------------------------------
+handleTabPs
+  :: BCh.BChan C.Command
+  -> B.BrickEvent C.Name C.UiEvent
+  -> Vty.Event
+  -> Maybe C.Name
+  -> Vty.Key
+  -> [Vty.Modifier]
+  -> B.EventM C.Name C.UiState ()
+handleTabPs _commandChan _ev ve focused k ms =
+  case (focused, k, ms) of
+    (Just C.NListPs, Vty.KChar 's', []) -> do
+      B.gets (^?  C.stPs . BL.listSelectedElementL . to (.modelName)) >>= \case
+        Nothing -> pass
+        Just name -> do
+          _ <- liftIO . O.generate $ O.GenerateOps
+            { modelName = name
+            , keepAlive = Just "0"
+            , prompt = ""
+            , suffix = Nothing
+            , images = Nothing
+            , format = Nothing
+            , system = Nothing
+            , template = Nothing
+            , stream = Nothing
+            , raw = Nothing
+            , hostUrl = Just C.ollamaUrl
+            , responseTimeOut = Nothing
+            , options = Nothing
+            }
+          C.stDebug .= "stopping " <> name
+
+      pass
+
+    (Just C.NListPs, _, _) -> do
+      B.zoom C.stPs $ BL.handleListEventVi BL.handleListEvent ve
+
+    _ -> pass
+---------------------------------------------------------------------------------------------------
+
+
+
+---------------------------------------------------------------------------------------------------
+-- Utils
+---------------------------------------------------------------------------------------------------
+filterModels :: B.EventM C.Name C.UiState [C.ModelItem]
+filterModels = do
+  vs <- use C.stModels
+  t <- Txt.strip . Txt.toLower <$> use C.stModelsFilter
+
+  if Txt.null t
+    then pure vs
+    else
+      pure $ filter (\mi ->
+          let
+            name = Txt.strip . Txt.toLower $ mi.miName
+            capabilities = Txt.toLower . Txt.intercalate " " . fromMaybe [] . join $ mi.miShow <&> (.capabilities)
+            tags = Txt.toLower mi.miTag
+          in
+          Txt.isInfixOf t (name <> " " <> capabilities <> " " <> tags)
+        )
+        vs
+---------------------------------------------------------------------------------------------------

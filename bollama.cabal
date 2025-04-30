@@ -30,7 +30,12 @@ library
   hs-source-dirs: src
   default-language: GHC2024
   exposed-modules:
-    App
+    App,
+    Config,
+    Core,
+    Draw,
+    Events,
+    Utils
   other-modules:
     Paths_bollama
   build-depends:
