@@ -11,11 +11,12 @@ module Utils where
 import           Verset
 
 import Data.Text qualified as Txt
+import Data.UUID.V4 qualified as UU
 import Ollama qualified as O
 import Text.Printf (printf)
 
-import Core qualified as C
 
+import Core qualified as C
 
 
 parseParams :: C.ModelItem -> Maybe Double
@@ -104,3 +105,11 @@ stopModel name = do
                 , options = Nothing
                 }
   pass
+
+
+newUuidText :: IO Text
+newUuidText = do
+  uuid <- UU.nextRandom
+  pure $ show uuid
+
+

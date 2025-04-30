@@ -35,6 +35,7 @@ library
     Core,
     Draw,
     Events,
+    Storage,
     Utils
   other-modules:
     Paths_bollama
@@ -44,6 +45,7 @@ library
     aeson,
     ansi-terminal,
     async,
+    auto-update,
     base64-bytestring,
     brick,
     bytestring,
@@ -58,13 +60,16 @@ library
     pretty-simple,
     raw-strings-qq,
     safe-exceptions,
+    strict-mutable-base,
     stm,
+    sqlite-simple,
     text,
     text-zipper,
     time,
     transformers,
     unliftio,
     unliftio-core,
+    uuid,
     vector,
     vty,
     vty-crossplatform

@@ -17,6 +17,7 @@ import           Verset
 import Brick ((<=>), (<+>))
 import Brick.AttrMap qualified as BA
 import Brick qualified as B
+import Brick.Focus qualified as BF
 import Brick.Widgets.Border qualified as BB
 import Brick.Widgets.Border.Style qualified as BBS
 import Brick.Widgets.Edit qualified as BE
@@ -186,13 +187,11 @@ drawChatInner :: C.UiState -> B.Widget C.Name
 drawChatInner st =
   drawChatMain
   <=>
-  B.fill ' '
-  <=>
   drawChatBottom
 
   where
     drawChatMain =
-      drawChatMainLeft <+> (B.padLeft (B.Pad 2) $ drawChatMainRight)
+      drawChatMainLeft <+> (B.padLeft (B.Pad 4) $ drawChatMainRight)
 
     drawChatBottom =
       --B.vLimit 1 . B.withAttr (B.attrName "tabFooter") $ B.txt "" <+> B.fill ' '
@@ -202,9 +201,19 @@ drawChatInner st =
       B.txt "chatLeft"
 
     drawChatMainRight =
-      B.txt "chatRight"
+      let
+        strmTxt =
+          case st._stChatCurrent of
+            Nothing -> ""
+            Just (_chatId, _chat, []) -> ""
+            Just (_chatId, _chat, (m: _msgs)) -> m.msgText
+      in
+      (B.txtWrap strmTxt)
       <=>
       B.fill ' '
+      <=>
+      --TODO BE.renderEditor (B.txt . Txt.unlines) (BF.focusGetCurrent st._stFocusModels == Just C.NChatInputEdit) st._stChatInput
+      BE.renderEditor (B.txt . Txt.unlines) (True) st._stChatInput
 
 ---------------------------------------------------------------------------------------------------
 
@@ -263,8 +272,8 @@ attrMap =
   in
 
   BA.attrMap Vty.defAttr [
-      (BE.editAttr             , Vty.black `B.on` Vty.cyan)
-    , (BE.editFocusedAttr      , Vty.black `B.on` Vty.yellow)
+      (BE.editAttr             , Vty.black `B.on` grey)
+    , (BE.editFocusedAttr      , Vty.black `B.on` Vty.blue)
     , (BL.listSelectedAttr     , B.fg Vty.yellow)
     , (B.attrName "infoTitle"  , B.fg Vty.cyan)
     , (B.attrName "time"       , B.fg Vty.yellow)

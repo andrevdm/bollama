@@ -8,6 +8,8 @@
 
 module Events
   ( handleEvent
+  , runCommands
+  , runTick
   ) where
 
 import           Verset
@@ -16,16 +18,19 @@ import Brick ((<+>))
 import Brick.BChan qualified as BCh
 import Brick.Focus qualified as BF
 import Brick qualified as B
---import Brick.Widgets.Border qualified as BB
---import Brick.Widgets.Border.Style qualified as BBS
 import Brick.Widgets.Edit qualified as BE
 import Brick.Widgets.List qualified as BL
-import Control.Lens ((^.), (^?), (%=), (.=), use, to, at)
-import Data.Time as DT
+import Control.Debounce as Deb
+import Control.Concurrent.Async (forConcurrently_)
+import Control.Concurrent.STM (atomically)
+import Control.Concurrent.STM.TVar qualified as TV
+import Control.Lens ((^.), (^?), (%=), (.=), use, to, at, non)
 import Data.List (findIndex)
+import Data.List.NonEmpty qualified as NE
+import Data.Map.Strict qualified as Map
 import Data.Text qualified as Txt
 import Data.Text.Zipper qualified as TxtZ
-import Data.Map.Strict qualified as Map
+import Data.Time as DT
 import Data.Vector qualified as V
 import Graphics.Vty qualified as Vty
 import Ollama qualified as O
@@ -94,8 +99,9 @@ handleEvent commandChan ev = do
         ---------------------------------------------------------------------------------------------------
         -- Tabs
         ---------------------------------------------------------------------------------------------------
-        (C.TabModels, _, Just C.NModelsList, _, _) -> handleTabModels commandChan ev ve focused k ms
-        (C.TabPs, _, Just C.NListPs, _, _) -> handleTabPs commandChan ev ve focused k ms
+        (C.TabModels, _, _, _, _) -> handleTabModels commandChan ev ve focused k ms
+        (C.TabPs, _, _, _, _) -> handleTabPs commandChan ev ve focused k ms
+        (C.TabChat, _, _, _, _) -> handleTabChat commandChan st._stStore ev ve focused k ms
         ---------------------------------------------------------------------------------------------------
 
         _ -> pass
@@ -116,6 +122,8 @@ handleAppEvent commandChan uev = do
     C.UeGotModelShow x -> handleAppEventGotModelShow commandChan x
     C.UeModelShowDone -> handleAppEventModelShowDone commandChan
     C.UeGotTime t -> handleAppEventGotTime commandChan t
+    C.UeChatUpdated chatId -> handleChatUpdated commandChan chatId
+    C.UeChatStreamResponseDone chatId streamId -> handleChatStreamResponseDone commandChan chatId streamId
 
 
 
@@ -191,6 +199,29 @@ handleAppEventModelShowDone _commandChan = do
 handleAppEventGotTime :: BCh.BChan C.Command -> DT.UTCTime -> B.EventM C.Name C.UiState ()
 handleAppEventGotTime _commandChan t = do
   C.stTime .= t
+
+
+handleChatUpdated :: BCh.BChan C.Command -> C.ChatId -> B.EventM C.Name C.UiState ()
+handleChatUpdated _commandChan chatId  = do
+  use C.stChatCurrent >>= \case
+    Just (currentChatId, _, _) | currentChatId == chatId -> do
+      store <- use C.stStore
+      current <- liftIO $ store.swGetCurrent
+      C.stChatCurrent .= current
+
+    _ ->
+      pass
+
+
+handleChatStreamResponseDone :: BCh.BChan C.Command -> C.ChatId -> C.StreamId -> B.EventM C.Name C.UiState ()
+handleChatStreamResponseDone commandChan chatId streamId = do
+  -- Update with the final response
+  --  Some updates may have been suppressed by the debounce
+  handleChatUpdated commandChan chatId
+
+  -- Save to store
+  store <- use C.stStore
+  liftIO $ store.swStreamDone chatId streamId
 ---------------------------------------------------------------------------------------------------
 
 
@@ -334,6 +365,59 @@ handleTabPs _commandChan _ev ve focused k ms =
 
 
 ---------------------------------------------------------------------------------------------------
+-- Chat Tab Events
+---------------------------------------------------------------------------------------------------
+handleTabChat
+  :: BCh.BChan C.Command
+  -> C.StoreWrapper
+  -> B.BrickEvent C.Name C.UiEvent
+  -> Vty.Event
+  -> Maybe C.Name
+  -> Vty.Key
+  -> [Vty.Modifier]
+  -> B.EventM C.Name C.UiState ()
+handleTabChat commandChan store ev _ve focused k ms =
+  case (focused, k, ms) of
+    --(Just C.NChatInputEdit, _, _) -> do
+    --  C.stDebug .= show (k, ms)
+
+    (Just C.NChatInputEdit, Vty.KChar 'r', [Vty.MCtrl]) -> do
+      let chatModel = "qwen3:0.6b" --TODO
+      let chatName = "chatX" --TODO
+
+      (cid, chat1, ms1) <-
+        liftIO store.swGetCurrent >>= \case
+          Just v -> pure v
+          Nothing -> do
+            chat <- liftIO $ store.swNewChat chatName chatModel
+            _ <- liftIO $ store.swSetCurrent chat.chatId
+            pure (chat.chatId, chat, [])
+
+      txt <- use (C.stChatInput . BE.editContentsL . to TxtZ.getText . to Txt.unlines . to Txt.strip)
+
+      liftIO (store.swAddMessage cid O.User True chatModel txt) >>= \case
+        Right newMsg -> do
+          C.stChatCurrent .= Just (cid, chat1, newMsg : ms1)
+          C.stChatInput . BE.editContentsL %= TxtZ.clearZipper
+          --TODO C.stChatWaiting .= True
+
+          streamId <- liftIO $ C.StreamId <$> U.newUuidText
+          liftIO . BCh.writeBChan commandChan $ C.CmdChatSend cid streamId newMsg
+
+
+        Left err -> do
+          C.stDebug .= "error: " <> err
+          --TODO
+
+    (Just C.NChatInputEdit, _, _) -> do
+      B.zoom C.stChatInput $ BE.handleEditorEvent ev
+
+    _ -> pass
+---------------------------------------------------------------------------------------------------
+
+
+
+---------------------------------------------------------------------------------------------------
 -- Utils
 ---------------------------------------------------------------------------------------------------
 filterModels :: B.EventM C.Name C.UiState [C.ModelItem]
@@ -354,3 +438,103 @@ filterModels = do
         )
         vs
 ---------------------------------------------------------------------------------------------------
+
+
+
+
+----------------------------------------------------------------------------------------------------------------------
+-- background thread
+----------------------------------------------------------------------------------------------------------------------
+runCommands :: BCh.BChan C.Command -> BCh.BChan C.UiEvent -> C.StoreWrapper -> IO ()
+runCommands commandChan eventChan store = forever $ do
+  BCh.readBChan commandChan >>= \case
+    C.CmdRefreshModelList -> do
+      mis' <- O.list
+      let ms = maybe [] (\(O.Models x) -> x) mis'
+      BCh.writeBChan eventChan . C.UeGotModelList $ ms
+
+
+    C.CmdRefreshModelShow names -> do
+      forConcurrently_ names $ \n -> do
+        s' <- O.showModelOps (Just C.ollamaUrl) n Nothing
+        case s' of
+          Nothing -> pass
+          Just s -> (BCh.writeBChan eventChan $ C.UeGotModelShow (n, s))
+
+      BCh.writeBChan eventChan $ C.UeModelShowDone
+
+
+    C.CmdRefreshPs -> do
+      ps' <- O.psOps (Just C.ollamaUrl)
+      let ps = maybe [] (\(O.RunningModels x) -> x) ps'
+      BCh.writeBChan eventChan . C.UePsList $ ps
+
+
+    C.CmdChatSend chatId streamId msg -> do
+      store.swGetChat chatId >>= \case
+        Just (_chat, hist1) -> do
+          debouncedUpdateUi <- Deb.mkDebounce Deb.defaultDebounceSettings
+            { Deb.debounceFreq = 500_000  -- 500ms
+            , Deb.debounceEdge = Deb.leadingEdge
+            , Deb.debounceAction = BCh.writeBChan eventChan $ C.UeChatUpdated chatId
+            }
+
+          let
+            hist2 = hist1 <&> \m -> O.Message m.msgRole m.msgText Nothing Nothing
+            oMsg = O.Message msg.msgRole msg.msgText Nothing Nothing
+            msgAndCtx = NE.fromList $ (reverse hist2) <> [oMsg]
+
+            ops = O.ChatOps
+              { chatModelName = "qwen3:0.6b"
+              , messages = msgAndCtx
+              , tools = Nothing
+              , format = Nothing
+              , keepAlive = Just "5m"
+              , hostUrl = Just C.ollamaUrl
+              , responseTimeOut = Nothing
+              , options = Nothing
+              , stream = Just (
+                \cr -> do
+                  case cr.message of
+                    Nothing -> pass
+                    Just m -> do
+                      _ <- liftIO $ store.swAddStreamedChatContent chatId streamId m.role m.content
+                      debouncedUpdateUi
+
+                  when (cr.done) $ do
+                    BCh.writeBChan eventChan $ C.UeChatStreamResponseDone chatId streamId
+
+                , pure   ()
+                )
+              }
+
+          void . forkIO $ do
+            r <- O.chat ops
+            --TODO check response
+            pass
+
+        Nothing -> do
+          --TODO send message for error
+          pass
+
+
+      pass
+
+
+runTick :: BCh.BChan C.UiEvent -> IO ()
+runTick eventChan = do
+  tick' <- TV.newTVarIO (0 :: Int)
+
+  forever $ do
+    tick <- atomically . TV.stateTVar tick' $ \t ->
+      let t2 = t + 1 `mod` 1_000_000 in
+      (t2, t2)
+
+    BCh.writeBChan eventChan $ C.UeTick tick
+
+    when (tick `mod` 10 == 0) $ do
+      now <- DT.getCurrentTime
+      BCh.writeBChan eventChan $ C.UeGotTime now
+
+    threadDelay 100_000
+----------------------------------------------------------------------------------------------------------------------
