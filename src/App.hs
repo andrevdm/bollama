@@ -19,27 +19,34 @@ import Brick qualified as B
 --import Brick.Widgets.Border.Style qualified as BBS
 import Brick.Widgets.Edit qualified as BE
 import Brick.Widgets.List qualified as BL
+import Control.Concurrent.Async (forConcurrently_)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TVar qualified as TV
 import Control.Lens (makeLenses)
-import Control.Lens ((^.), (^?), (%=), (.=), (%~), use, to, _Just)
-import Control.Concurrent.Async (forConcurrently_)
+import Control.Lens ((^.), (^?), (%=), (.=), (%~), use, to, at, _Just)
+import Data.Aeson qualified as Ae
+import Data.List (findIndex)
 import Data.Text qualified as Txt
+import Data.Text.IO qualified as Txt
 import Data.Text.Zipper qualified as TxtZ
 import Data.Time qualified as DT
-import Data.List (findIndex)
+import Data.Map.Strict qualified as Map
 import Data.Vector qualified as V
+import Data.Version qualified as Ver
 import Graphics.Vty.CrossPlatform qualified as Vty
 import Graphics.Vty qualified as Vty
 import Ollama qualified as O
-import Text.Printf (printf)
-import Data.Version qualified as Ver
 import Paths_bollama qualified as Paths
+import System.Directory qualified as Dir
+import System.FilePath ((</>))
+import System.FilePath qualified as Fp
+import Text.Printf (printf)
 
 data Name
   = NListModels
   | NListPs
   | NEditModelSearch
+  | NEditModelTag
   deriving stock (Show, Eq, Ord)
 
 data UiEvent
@@ -76,13 +83,16 @@ data UiState = UiState
   , _stNow :: !DT.UTCTime
   , _stDebug :: !Text
   , _stFooterWidget :: !(Maybe (Name, UiState -> B.Widget Name))
-  , _stSearchEditor :: !(BE.Editor Text Name)
+  , _stModelFilterEditor :: !(BE.Editor Text Name)
+  , _stModelTagEditor :: !(BE.Editor Text Name)
+  , _stAppConfig :: !AppConfig
   }
 
 data ModelItem = ModelItem
   { miName :: !Text
   , miInfo :: !O.ModelInfo
   , miShow :: !(Maybe O.ShowModelResponse)
+  , miTag :: !Text
   }
 
 data Tab
@@ -91,7 +101,12 @@ data Tab
   | TabChat
   deriving stock (Show, Eq, Ord, Enum, Bounded)
 
+data AppConfig = AppConfig
+  { acModelTag :: !(Map Text Text)
+  } deriving (Show, Eq, Generic)
+
 makeLenses ''UiState
+
 
 runTui :: IO ()
 runTui = do
@@ -116,6 +131,8 @@ runTui = do
 
   now <- DT.getCurrentTime
 
+  cfg <- loadAppConfig
+
   let initialState = UiState
        { _stTick = 0
        , _stFocusModels = BF.focusRing [NListModels]
@@ -133,7 +150,9 @@ runTui = do
        , _stNow = now
        , _stDebug = ""
        , _stFooterWidget = Nothing
-       , _stSearchEditor = BE.editorText NEditModelSearch (Just 1) ""
+       , _stModelFilterEditor = BE.editorText NEditModelSearch (Just 1) ""
+       , _stModelTagEditor = BE.editorText NEditModelTag (Just 1) ""
+       , _stAppConfig = cfg
        }
 
   _finalState <- B.customMain @Name initialVty buildVty (Just eventChan) app initialState
@@ -222,6 +241,7 @@ drawUI st =
           , col 11 "Size" "colHeader"
           , col 17 "Family" "colHeader"
           , col 40 "Capabilities" "colHeader"
+          , col 50 "User" "colHeader"
           ]
       )
       <=>
@@ -239,6 +259,7 @@ drawUI st =
           case (.capabilities) <$> sm of
             Just (Just cs') -> Txt.intercalate ", " cs'
             _ -> ""
+        usr = fromMaybe "" $ Map.lookup itm.miName st._stAppConfig.acModelTag
       in
       B.vLimit 1 $ B.hBox [
           colTb col  70 mi.name ""
@@ -248,6 +269,7 @@ drawUI st =
         , colTb col  11 (bytesToGb mi.size) ""
         , colTe col  17 (maybe "" (.details.familiy) sm) ""
         , colTe col  40 cs ""
+        , colTe col  50 usr ""
         ]
 
     colTe colF width txt' attr =
@@ -285,11 +307,13 @@ handleEvent commandChan ev = do
         liftIO (BCh.writeBChan commandChan CmdRefreshPs)
 
     B.AppEvent (UeGotModelList ms1) -> do
+      cfg <- use stAppConfig
       let ms2 = ms1
       let ms = ms2 <&> \m -> ModelItem
             { miName = m.name
             , miInfo = m
             , miShow = Nothing
+            , miTag = fromMaybe "" $ cfg.acModelTag ^. at m.name
             }
 
       stModels .= ms
@@ -349,17 +373,21 @@ handleEvent commandChan ev = do
 
 
       case (footerWidgetName, st._stTab, focused, k, ms) of
+        ---------------------------------------------------------------------------------------------------
+        -- Global
+        ---------------------------------------------------------------------------------------------------
         (_, _, _, Vty.KChar 'q', [Vty.MCtrl]) -> B.halt
-        --(_, _, _, Vty.KEsc, [Vty.MCtrl]) -> B.halt
+        ---------------------------------------------------------------------------------------------------
 
-        --(Just NEditModelSearch, _, _, Vty.KBS, [Vty.MShift]) -> do
-        --  stSearchEditor . BE.editContentsL %= TxtZ.clearZipper
 
+        ---------------------------------------------------------------------------------------------------
+        -- NEditModelSearch
+        ---------------------------------------------------------------------------------------------------
         (Just NEditModelSearch, _, _, Vty.KEsc, []) -> do
           stFooterWidget .= Nothing
 
         (Just NEditModelSearch, _, _, Vty.KEnter, []) -> do
-          txt <- use (stSearchEditor . BE.editContentsL . to TxtZ.getText)
+          txt <- use (stModelFilterEditor . BE.editContentsL . to TxtZ.getText)
           stModelsFilter .= Txt.unlines txt
           stFooterWidget .= Nothing
           filteredModels <- filterModels
@@ -368,8 +396,38 @@ handleEvent commandChan ev = do
           stModelsList %= BL.listReplace (V.fromList filteredModels) ix
 
         (Just NEditModelSearch, _, _, _, _) -> do
-          B.zoom stSearchEditor $ BE.handleEditorEvent ev
+          B.zoom stModelFilterEditor $ BE.handleEditorEvent ev
+        ---------------------------------------------------------------------------------------------------
 
+
+
+        ---------------------------------------------------------------------------------------------------
+        -- NEditModelTag
+        ---------------------------------------------------------------------------------------------------
+        (Just NEditModelTag, _, _, Vty.KEsc, []) -> do
+          stFooterWidget .= Nothing
+
+        (Just NEditModelTag, _, _, Vty.KEnter, []) -> do
+          B.gets (^?  stModelsList . BL.listSelectedElementL . to miName) >>= \case
+            Nothing -> pass
+            Just selected -> do
+              txt <- use (stModelTagEditor . BE.editContentsL . to TxtZ.getText)
+              stAppConfig %= \cfg ->
+                cfg { acModelTag = Map.insert selected (Txt.unlines txt) cfg.acModelTag }
+              liftIO . writeAppConfig =<< use stAppConfig
+
+          stModelTagEditor . BE.editContentsL %= TxtZ.clearZipper
+          stFooterWidget .= Nothing
+
+        (Just NEditModelTag, _, _, _, _) -> do
+          B.zoom stModelTagEditor $ BE.handleEditorEvent ev
+        ---------------------------------------------------------------------------------------------------
+
+
+
+        ---------------------------------------------------------------------------------------------------
+        -- Function keys
+        ---------------------------------------------------------------------------------------------------
         (_, _, _, Vty.KFun 2, []) -> do
           unless (st._stTab == TabModels) $ do
             stLoadingPs .= True
@@ -385,17 +443,39 @@ handleEvent commandChan ev = do
           unless (st._stTab == TabChat) $ do
             stLoadingPs .= True
             stTab .= TabChat
+        ---------------------------------------------------------------------------------------------------
 
 
+
+        ---------------------------------------------------------------------------------------------------
+        -- NListModels
+        ---------------------------------------------------------------------------------------------------
         (_, _, Just NListModels, Vty.KChar '/', []) -> do
-          stFooterWidget .= Just (NEditModelSearch, \st2 -> (B.withAttr (B.attrName "footerTitle") $ B.txt "filter: ") <+> BE.renderEditor (B.txt . Txt.unlines) True st2._stSearchEditor)
+          stFooterWidget .= Just (NEditModelSearch, \st2 -> (B.withAttr (B.attrName "footerTitle") $ B.txt "filter: ") <+> BE.renderEditor (B.txt . Txt.unlines) True st2._stModelFilterEditor)
+
+        (_, _, Just NListModels, Vty.KChar 't', []) -> do
+          cfg <- use stAppConfig
+          tags <-
+            B.gets (^?  stModelsList . BL.listSelectedElementL . to miName) >>= \case
+              Nothing -> pure ""
+              Just selected -> do
+                pure . fromMaybe "" $ Map.lookup selected cfg.acModelTag
+
+          stModelTagEditor .= BE.editorText NEditModelTag (Just 1) tags
+          stFooterWidget .= Just (NEditModelTag, \st2 -> (B.withAttr (B.attrName "footerTitle") $ B.txt "tag: ") <+> BE.renderEditor (B.txt . Txt.unlines) True st2._stModelTagEditor)
 
         (_, _, Just NListModels, _, _) -> do
           B.zoom stModelsList $ BL.handleListEventVi BL.handleListEvent ve
+        ---------------------------------------------------------------------------------------------------
 
 
+
+        ---------------------------------------------------------------------------------------------------
+        -- NListPs
+        ---------------------------------------------------------------------------------------------------
         (_, _, Just NListPs, _, _) -> do
           B.zoom stPs $ BL.handleListEventVi BL.handleListEvent ve
+        ---------------------------------------------------------------------------------------------------
 
         _ -> pass
 
@@ -414,8 +494,9 @@ filterModels = do
           let
             name = Txt.strip . Txt.toLower $ mi.miName
             capabilities = Txt.toLower . Txt.intercalate " " . fromMaybe [] . join $ mi.miShow <&> (.capabilities)
+            tags = Txt.toLower mi.miTag
           in
-          Txt.isInfixOf t (name <> " " <> capabilities)
+          Txt.isInfixOf t (name <> " " <> capabilities <> " " <> tags)
         )
         vs
 
@@ -590,3 +671,54 @@ spinnerFrames = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]
 
 verText :: Text
 verText = Txt.pack $ Ver.showVersion Paths.version
+
+
+getConfigDir :: IO FilePath
+getConfigDir = do
+  p <- Dir.getXdgDirectory Dir.XdgConfig "bollama"
+  Dir.createDirectoryIfMissing True p
+  pure p
+
+
+
+emptyAppConfig :: AppConfig
+emptyAppConfig = AppConfig
+  { acModelTag = mempty
+  }
+
+
+instance Ae.FromJSON AppConfig where
+  parseJSON = Ae.genericParseJSON Ae.defaultOptions { Ae.fieldLabelModifier = renSnake 2 }
+
+instance Ae.ToJSON AppConfig where
+  toJSON = Ae.genericToJSON Ae.defaultOptions { Ae.fieldLabelModifier = renSnake 2 }
+
+
+loadAppConfig :: IO AppConfig
+loadAppConfig = do
+  configDir <- getConfigDir
+  let configFile = configDir </> "config.json"
+
+  Dir.doesFileExist configFile >>= \case
+    False -> pure emptyAppConfig
+    True -> do
+      cfg <- Ae.eitherDecodeFileStrict' configFile
+      case cfg of
+        Right cfg' -> pure cfg'
+        Left _err -> do
+          Dir.removeFile configFile
+          pure $ AppConfig mempty
+
+
+writeAppConfig :: AppConfig -> IO ()
+writeAppConfig cfg = do
+  configDir <- getConfigDir
+  Dir.createDirectoryIfMissing True configDir
+
+  let configFile = configDir </> "config.json"
+  Ae.encodeFile configFile cfg
+
+
+renSnake :: Int -> [Char] -> [Char]
+renSnake d = Ae.camelTo2 '_' . drop d
+
