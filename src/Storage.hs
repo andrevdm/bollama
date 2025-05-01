@@ -51,7 +51,7 @@ newInMemStore = do
 
 data WrapperState = WrapperState
   { store :: !C.Store
-  , cache :: !(Map C.ChatId (Bool, C.Chat, [(C.ChatMessage, Maybe C.StreamId)]))
+  , cache :: !(Map C.ChatId (C.StreamingState, C.Chat, [(C.ChatMessage, Maybe C.StreamId)]))
   , currentId :: !(Maybe C.ChatId)
   }
 
@@ -93,7 +93,7 @@ newStoreWrapper mkStore = do
     evict :: MVar' WrapperState -> a -> IO a
     evict st' a = do
       modifyMVar'_ st' $ \st -> do
-        let vs2 = Map.filterWithKey (\k (isStreaming, _, _) -> isStreaming || Just k /= st.currentId) st.cache
+        let vs2 = Map.filterWithKey (\k (isStreaming, _, _) -> isStreaming == C.SsStreaming || Just k /= st.currentId) st.cache
         pure $ st { cache = vs2 }
       pure a
 
@@ -112,7 +112,7 @@ newStoreWrapper mkStore = do
             }
 
       modifyMVar'_ st' $ \st -> do
-        let cache2 = Map.insert chatId (False, chat, []) st.cache
+        let cache2 = Map.insert chatId (C.SsNotStreaming, chat, []) st.cache
         _ <- st.store.srSaveChat chat
         pure st { cache = cache2 }
 
@@ -155,14 +155,14 @@ newStoreWrapper mkStore = do
                   -- Current chat is in store
                   Just (c, ms) -> do
                     -- Update cache with the loaded chat
-                    let st2 = st { cache = Map.insert currentId (False, c, (,Nothing) <$> ms) st.cache }
+                    let st2 = st { cache = Map.insert currentId (C.SsNotStreaming, c, (,Nothing) <$> ms) st.cache }
                     -- done
                     pure (st2, Just (currentId, c, ms))
 
 
 
 
-    addMessage :: MVar' WrapperState -> C.ChatId -> O.Role -> Bool -> Text -> Text -> IO (Either Text C.ChatMessage)
+    addMessage :: MVar' WrapperState -> C.ChatId -> O.Role -> C.StreamingState -> Text -> Text -> IO (Either Text C.ChatMessage)
     addMessage st' chatId role isStreaming model text = do
       now <- DT.getCurrentTime
       mid <- U.newUuidText
@@ -227,7 +227,7 @@ newStoreWrapper mkStore = do
                        , ms1)
 
             let current2 = current1 {C.msgText = C.msgText current1 <> text}
-            let st2 = st { cache = Map.insert chatId (True, chat, (current2, Just streamId) : rest) st.cache }
+            let st2 = st { cache = Map.insert chatId (C.SsStreaming, chat, (current2, Just streamId) : rest) st.cache }
             pure (st2, Right ())
 
 

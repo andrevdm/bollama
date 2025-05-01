@@ -127,11 +127,10 @@ data StoreWrapper = StoreWrapper
   , swGetChat :: !(ChatId -> IO (Maybe (Chat, [ChatMessage])))
   , swSetCurrent :: !(ChatId -> IO ())
   , swGetCurrent :: !(IO (Maybe (ChatId, Chat, [ChatMessage])))
-  , swAddMessage :: !(ChatId -> O.Role -> Bool -> Text -> Text -> IO (Either Text ChatMessage))
+  , swAddMessage :: !(ChatId -> O.Role -> StreamingState -> Text -> Text -> IO (Either Text ChatMessage))
   , swStreamDone :: !(ChatId -> StreamId -> IO ())
   , swAddStreamedChatContent :: !(ChatId -> StreamId -> O.Role -> Text -> IO (Either Text ()))
   }
-
 
 
 data ModelItem = ModelItem
@@ -150,6 +149,11 @@ data Tab
 data AppConfig = AppConfig
   { acModelTag :: !(Map Text Text)
   } deriving (Show, Eq, Generic)
+
+data StreamingState
+  = SsStreaming
+  | SsNotStreaming
+  deriving stock (Show, Eq, Ord)
 
 
 

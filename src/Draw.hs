@@ -220,7 +220,8 @@ drawChatInner st =
       let attrName =
            if listSelected && itemSelected
            then "chatMsgSelected"
-           else if ix `mod` 2 == 0 then "chatMsgA" else "chatMsgB" in
+           else
+             if ix `mod` 2 == 0 then "chatMsgA" else "chatMsgB" in
 
       B.padBottom (B.Pad 1) $
       B.withAttr (B.attrName attrName) $

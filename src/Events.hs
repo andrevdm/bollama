@@ -420,7 +420,7 @@ handleTabChat commandChan store ev ve focused k ms =
       txt <- use (C.stChatInput . BE.editContentsL . to TxtZ.getText . to Txt.unlines . to Txt.strip)
 
       unless (Txt.null txt) $ do
-        liftIO (store.swAddMessage cid O.User True chatModel txt) >>= \case
+        liftIO (store.swAddMessage cid O.User C.SsStreaming chatModel txt) >>= \case
           Right newMsg -> do
             C.stChatCurrent .= Just cid
             C.stChatInput . BE.editContentsL %= TxtZ.clearZipper
