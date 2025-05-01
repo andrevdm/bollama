@@ -389,6 +389,23 @@ handleTabChat commandChan store ev ve focused k ms =
 
 
     (Just C.NChatInputEdit, Vty.KChar 'r', [Vty.MCtrl]) -> do
+      runInput
+
+    (Just C.NChatInputEdit, Vty.KFun 5, []) -> do
+      runInput
+
+    (Just C.NChatInputEdit, _, _) -> do
+      --C.stDebug .= show (k, ms)
+      B.zoom C.stChatInput $ BE.handleEditorEvent ev
+
+    (Just C.NChatMsgList, _, _) -> do
+      --C.stDebug .= "chat msg list" <> (show (k, ms))
+      B.zoom C.stChatMsgList $ BL.handleListEventVi BL.handleListEvent ve
+
+    _ -> pass
+
+  where
+    runInput = do
       let chatModel = "qwen3:0.6b" --TODO
       let chatName = "chatX" --TODO
 
@@ -402,28 +419,20 @@ handleTabChat commandChan store ev ve focused k ms =
 
       txt <- use (C.stChatInput . BE.editContentsL . to TxtZ.getText . to Txt.unlines . to Txt.strip)
 
-      liftIO (store.swAddMessage cid O.User True chatModel txt) >>= \case
-        Right newMsg -> do
-          C.stChatCurrent .= Just cid
-          C.stChatInput . BE.editContentsL %= TxtZ.clearZipper
-          handleChatUpdated commandChan cid
+      unless (Txt.null txt) $ do
+        liftIO (store.swAddMessage cid O.User True chatModel txt) >>= \case
+          Right newMsg -> do
+            C.stChatCurrent .= Just cid
+            C.stChatInput . BE.editContentsL %= TxtZ.clearZipper
+            handleChatUpdated commandChan cid
 
-          streamId <- liftIO $ C.StreamId <$> U.newUuidText
-          liftIO . BCh.writeBChan commandChan $ C.CmdChatSend cid streamId newMsg
+            streamId <- liftIO $ C.StreamId <$> U.newUuidText
+            liftIO . BCh.writeBChan commandChan $ C.CmdChatSend cid streamId newMsg
 
 
-        Left err -> do
-          C.stDebug .= "error: " <> err
-          --TODO
-
-    (Just C.NChatInputEdit, _, _) -> do
-      B.zoom C.stChatInput $ BE.handleEditorEvent ev
-
-    (Just C.NChatMsgList, _, _) -> do
-      --C.stDebug .= "chat msg list" <> (show (k, ms))
-      B.zoom C.stChatMsgList $ BL.handleListEventVi BL.handleListEvent ve
-
-    _ -> pass
+          Left err -> do
+            C.stDebug .= "error: " <> err
+            --TODO
 ---------------------------------------------------------------------------------------------------
 
 
