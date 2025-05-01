@@ -210,7 +210,7 @@ handleChatUpdated _commandChan chatId  = do
         Nothing -> pure []
         Just (_, _, ms') -> pure ms'
 
-      C.stChatMsgList %= BL.listReplace (V.fromList . reverse $ ms) Nothing
+      C.stChatMsgList %= BL.listMoveToEnd . BL.listReplace (V.fromList . reverse $ ms) Nothing
 
     _ ->
       pass
@@ -379,10 +379,14 @@ handleTabChat
   -> Vty.Key
   -> [Vty.Modifier]
   -> B.EventM C.Name C.UiState ()
-handleTabChat commandChan store ev _ve focused k ms =
+handleTabChat commandChan store ev ve focused k ms =
   case (focused, k, ms) of
-    --(Just C.NChatInputEdit, _, _) -> do
-    --  C.stDebug .= show (k, ms)
+    (_, Vty.KChar '\t', []) -> do
+      C.stFocusChat %= BF.focusNext
+
+    (_, Vty.KBackTab, []) -> do
+      C.stFocusChat %= BF.focusPrev
+
 
     (Just C.NChatInputEdit, Vty.KChar 'r', [Vty.MCtrl]) -> do
       let chatModel = "qwen3:0.6b" --TODO
@@ -414,6 +418,10 @@ handleTabChat commandChan store ev _ve focused k ms =
 
     (Just C.NChatInputEdit, _, _) -> do
       B.zoom C.stChatInput $ BE.handleEditorEvent ev
+
+    (Just C.NChatMsgList, _, _) -> do
+      --C.stDebug .= "chat msg list" <> (show (k, ms))
+      B.zoom C.stChatMsgList $ BL.handleListEventVi BL.handleListEvent ve
 
     _ -> pass
 ---------------------------------------------------------------------------------------------------

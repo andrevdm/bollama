@@ -185,6 +185,8 @@ drawModelsInner st =
 ---------------------------------------------------------------------------------------------------
 drawChatInner :: C.UiState -> B.Widget C.Name
 drawChatInner st =
+  drawChatTop
+  <=>
   drawChatMain
   <=>
   drawChatBottom
@@ -192,6 +194,9 @@ drawChatInner st =
   where
     drawChatMain =
       drawChatMainLeft <+> (B.padLeft (B.Pad 4) $ drawChatMainRight)
+
+    drawChatTop =
+      B.txt "chatTop"
 
     drawChatBottom =
       --B.vLimit 1 . B.withAttr (B.attrName "tabFooter") $ B.txt "" <+> B.fill ' '
@@ -201,15 +206,22 @@ drawChatInner st =
       B.txt "chatLeft"
 
     drawChatMainRight =
-      BL.renderListWithIndex (\ix _ e -> renderChatListItem ix e) (BF.focusGetCurrent st._stFocusModels == Just C.NChatMsgList) (BL.listMoveToEnd st._stChatMsgList)
+      let
+        inputEditSelected = BF.focusGetCurrent st._stFocusChat == Just C.NChatInputEdit
+        msgListSelected = BF.focusGetCurrent st._stFocusChat == Just C.NChatMsgList
+      in
+      BL.renderListWithIndex (renderChatListItem msgListSelected) msgListSelected (st._stChatMsgList)
       <=>
-      --B.padTop (B.Pad 1) (BE.renderEditor (B.txt . Txt.unlines) (BF.focusGetCurrent st._stFocusModels == Just C.NChatInputEdit) st._stChatInput)
-      B.padTop (B.Pad 1) (BE.renderEditor (B.txt . Txt.unlines) (True) st._stChatInput)
+      B.padTop (B.Pad 1) (BE.renderEditor (B.txt . Txt.unlines) inputEditSelected st._stChatInput)
 
 
-    renderChatListItem :: Int -> C.ChatMessage -> B.Widget C.Name
-    renderChatListItem ix msg =
-      let attrName = if ix `mod` 2 == 0 then "chatMsgA" else "chatMsgB" in
+    renderChatListItem :: Bool -> Int -> Bool -> C.ChatMessage -> B.Widget C.Name
+    renderChatListItem listSelected ix itemSelected msg =
+      let attrName =
+           if listSelected && itemSelected
+           then "chatMsgSelected"
+           else if ix `mod` 2 == 0 then "chatMsgA" else "chatMsgB" in
+
       B.padBottom (B.Pad 1) $
       B.withAttr (B.attrName attrName) $
       B.hBox
@@ -299,8 +311,9 @@ attrMap =
     , (B.attrName "tabUnselected"   , Vty.black `B.on` grey)
     , (B.attrName "tabFooter"       , Vty.black `B.on` grey)
 
-    , (B.attrName "chatMsgA"       , Vty.black `B.on` greyA)
-    , (B.attrName "chatMsgB"       , Vty.black `B.on` greyB)
+    , (B.attrName "chatMsgA"        , Vty.black `B.on` greyA)
+    , (B.attrName "chatMsgB"        , Vty.black `B.on` greyB)
+    , (B.attrName "chatMsgSelected" , Vty.black `B.on` Vty.green)
 
     ]
 
