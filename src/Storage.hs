@@ -16,6 +16,7 @@ import           Verset
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TVar qualified as TV
 import Control.Concurrent.MVar.Strict (MVar', newMVar', modifyMVar', modifyMVar'_, withMVar')
+import Data.Text.IO qualified as Txt
 import Data.Time qualified as DT
 import Data.Map.Strict qualified as Map
 import Ollama qualified as O
@@ -51,7 +52,7 @@ newInMemStore = do
 
 data WrapperState = WrapperState
   { store :: !C.Store
-  , cache :: !(Map C.ChatId (C.StreamingState, C.Chat, [(C.ChatMessage, Maybe C.StreamId)]))
+  , cache :: !(Map C.ChatId (C.StreamingState, C.Chat, [C.ChatMessage]))
   , currentId :: !(Maybe C.ChatId)
   }
 
@@ -80,7 +81,7 @@ newStoreWrapper mkStore = do
     , swSetCurrent = \c -> setCurrent st c >>= evict st
     , swGetCurrent = getCurrent st
     , swAddMessage = addMessage st
-    , swStreamDone = \c s -> streamDone st c s >>= evict st
+    , swStreamDone = \c -> streamDone st c >>= evict st
     , swAddStreamedChatContent = addStreamedChatContent st
     }
 
@@ -93,7 +94,7 @@ newStoreWrapper mkStore = do
     evict :: MVar' WrapperState -> a -> IO a
     evict st' a = do
       modifyMVar'_ st' $ \st -> do
-        let vs2 = Map.filterWithKey (\k (isStreaming, _, _) -> isStreaming == C.SsStreaming || Just k /= st.currentId) st.cache
+        let vs2 = Map.filterWithKey (\k (streamingSts, _, _) -> streamingSts == C.SsStreaming || Just k /= st.currentId) st.cache
         pure $ st { cache = vs2 }
       pure a
 
@@ -124,7 +125,7 @@ newStoreWrapper mkStore = do
       withMVar' st' $ \st -> do
         case Map.lookup chatId st.cache of
           Nothing -> st.store.srLoadChat chatId
-          Just (_isStreaming, chat, ms) -> pure $ Just (chat, fst <$> ms)
+          Just (_streamingSts, chat, ms) -> pure $ Just (chat, ms)
 
 
     setCurrent :: MVar' WrapperState -> C.ChatId -> IO ()
@@ -132,7 +133,7 @@ newStoreWrapper mkStore = do
       modifyMVar'_ st' $ \st -> pure st { currentId = Just chatId }
 
 
-    getCurrent :: MVar' WrapperState -> IO (Maybe (C.ChatId, C.Chat, [C.ChatMessage]))
+    getCurrent :: MVar' WrapperState -> IO (Maybe (C.ChatId, C.Chat, C.StreamingState, [C.ChatMessage]))
     getCurrent st' = do
       modifyMVar' st' $ \st -> do
         case st.currentId of
@@ -142,8 +143,8 @@ newStoreWrapper mkStore = do
           Just currentId -> do
             case Map.lookup currentId st.cache of
               -- Current chat is in cache
-              Just (_isStreaming, chat, ms) ->
-                pure (st, Just (currentId, chat, fst <$> ms))
+              Just (streamingSts, chat, ms) ->
+                pure (st, Just (currentId, chat, streamingSts, ms))
 
               -- Current chat is not in cache
               Nothing -> do
@@ -155,17 +156,17 @@ newStoreWrapper mkStore = do
                   -- Current chat is in store
                   Just (c, ms) -> do
                     -- Update cache with the loaded chat
-                    let st2 = st { cache = Map.insert currentId (C.SsNotStreaming, c, (,Nothing) <$> ms) st.cache }
+                    let st2 = st { cache = Map.insert currentId (C.SsNotStreaming, c, ms) st.cache }
                     -- done
-                    pure (st2, Just (currentId, c, ms))
+                    pure (st2, Just (currentId, c, C.SsNotStreaming, ms))
 
 
 
 
     addMessage :: MVar' WrapperState -> C.ChatId -> O.Role -> C.StreamingState -> Text -> Text -> IO (Either Text C.ChatMessage)
-    addMessage st' chatId role isStreaming model text = do
+    addMessage st' chatId role streamingSts model text = do
       now <- DT.getCurrentTime
-      mid <- U.newUuidText
+      mid <- C.MessageId <$> U.newUuidText
       let newMsg = C.ChatMessage
             { C.msgChatId = chatId
             , C.msgId = mid
@@ -180,8 +181,8 @@ newStoreWrapper mkStore = do
         let cache2 =
              Map.adjust
               (\(_, chat, ms1) ->
-                let ms2 = (newMsg, Nothing) : ms1 in
-                (isStreaming, chat, ms2)
+                let ms2 = newMsg : ms1 in
+                (streamingSts, chat, ms2)
                 )
               chatId
               st.cache
@@ -193,28 +194,26 @@ newStoreWrapper mkStore = do
       pure . Right $ newMsg
 
 
-    addStreamedChatContent :: MVar' WrapperState -> C.ChatId -> C.StreamId -> O.Role -> Text -> IO (Either Text ())
-    addStreamedChatContent st' chatId streamId role text = do
+    addStreamedChatContent :: MVar' WrapperState -> C.ChatId -> C.MessageId -> O.Role -> Text -> IO (Either Text ())
+    addStreamedChatContent st' chatId msgId role text = do
       modifyMVar' st' $ \st -> do
         current' <-
-          -- Get from cache or store
+          -- Get chat from cache or store
           case Map.lookup chatId st.cache of
             Just (_, chat, ms) -> pure $ Just (chat, ms)
             Nothing -> do
               st.store.srLoadChat chatId >>= \case
                 Nothing -> pure Nothing
                 Just (chat, ms) -> do
-                  let ms2 = (,Nothing) <$> ms
-                  pure $ Just (chat, ms2)
+                  pure $ Just (chat, ms)
 
         case current' of
           Nothing -> pure (st, Left $ "Chat not found in cache or store: " <> show chatId)
           Just (chat, ms1) -> do
             (current1, rest) <-
               case ms1 of
-                ((m, Just sid) : rest') | sid == streamId -> pure (m, rest')
+                (m : rest') | m.msgId == msgId -> pure (m, rest')
                 _ -> do
-                  msgId <- U.newUuidText
                   now <- DT.getCurrentTime
                   pure ( C.ChatMessage
                            { C.msgChatId = chatId
@@ -227,12 +226,24 @@ newStoreWrapper mkStore = do
                        , ms1)
 
             let current2 = current1 {C.msgText = C.msgText current1 <> text}
-            let st2 = st { cache = Map.insert chatId (C.SsStreaming, chat, (current2, Just streamId) : rest) st.cache }
+            let st2 = st { cache = Map.insert chatId (C.SsStreaming, chat, current2 : rest) st.cache }
             pure (st2, Right ())
 
 
-    streamDone :: MVar' WrapperState -> C.ChatId -> C.StreamId -> IO ()
-    streamDone st' chatId streamId = do
-      pass --TODO
+    streamDone :: MVar' WrapperState -> C.ChatId -> IO ()
+    streamDone st' chatId = do
+      modifyMVar'_ st' $ \st -> do
+        case Map.lookup chatId st.cache of
+          Nothing -> pass
+          Just (_, _, []) -> pass
+          Just (_, _, (m:_)) -> st.store.srSaveChatMessage m
+
+        let cache2 = Map.adjust go chatId st.cache
+        pure st { cache = cache2 }
+
+      where
+        go (_, chat, ms) = (C.SsNotStreaming, chat, ms)
+
+
 
 

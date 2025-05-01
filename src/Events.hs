@@ -24,7 +24,7 @@ import Control.Debounce as Deb
 import Control.Concurrent.Async (forConcurrently_)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TVar qualified as TV
-import Control.Lens ((^.), (^?), (%=), (.=), use, to, at, non)
+import Control.Lens ((^.), (^?), (%=), (.=), (<>=), use, to, at, non)
 import Data.List (findIndex)
 import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as Map
@@ -123,7 +123,7 @@ handleAppEvent commandChan uev = do
     C.UeModelShowDone -> handleAppEventModelShowDone commandChan
     C.UeGotTime t -> handleAppEventGotTime commandChan t
     C.UeChatUpdated chatId -> handleChatUpdated commandChan chatId
-    C.UeChatStreamResponseDone chatId streamId -> handleChatStreamResponseDone commandChan chatId streamId
+    C.UeChatStreamResponseDone chatId -> handleChatStreamResponseDone commandChan chatId
 
 
 
@@ -204,27 +204,29 @@ handleAppEventGotTime _commandChan t = do
 handleChatUpdated :: BCh.BChan C.Command -> C.ChatId -> B.EventM C.Name C.UiState ()
 handleChatUpdated _commandChan chatId  = do
   use C.stChatCurrent >>= \case
-    Just currentChatId | currentChatId == chatId -> do
+    Just (currentChatId, streamingStateOld) | currentChatId == chatId -> do
       store <- use C.stStore
-      ms <- liftIO store.swGetCurrent >>= \case
-        Nothing -> pure []
-        Just (_, _, ms') -> pure ms'
+      (ms, streamingState) <- liftIO store.swGetCurrent >>= \case
+        Nothing -> pure ([], streamingStateOld)
+        Just (_, _, ss, ms') -> pure (ms', ss)
 
+      C.stChatCurrent .= Just (currentChatId, streamingState)
       C.stChatMsgList %= BL.listMoveToEnd . BL.listReplace (V.fromList . reverse $ ms) Nothing
 
-    _ ->
+    _ -> do
       pass
 
 
-handleChatStreamResponseDone :: BCh.BChan C.Command -> C.ChatId -> C.StreamId -> B.EventM C.Name C.UiState ()
-handleChatStreamResponseDone commandChan chatId streamId = do
-  -- Update with the final response
-  --  Some updates may have been suppressed by the debounce
-  handleChatUpdated commandChan chatId
-
+handleChatStreamResponseDone :: BCh.BChan C.Command -> C.ChatId -> B.EventM C.Name C.UiState ()
+handleChatStreamResponseDone commandChan chatId = do
   -- Save to store
   store <- use C.stStore
-  liftIO $ store.swStreamDone chatId streamId
+  liftIO $ store.swStreamDone chatId
+
+  -- Update with the final response
+  --  Some updates may have been suppressed by the debounce
+  --  This also updates the stCurrent's streaming status
+  handleChatUpdated commandChan chatId
 ---------------------------------------------------------------------------------------------------
 
 
@@ -411,7 +413,7 @@ handleTabChat commandChan store ev ve focused k ms =
 
       cid <-
         liftIO store.swGetCurrent >>= \case
-          Just (cid', _, _) -> pure cid'
+          Just (cid', _, _strmState, _) -> pure cid'
           Nothing -> do
             chat <- liftIO $ store.swNewChat chatName chatModel
             _ <- liftIO $ store.swSetCurrent chat.chatId
@@ -422,12 +424,11 @@ handleTabChat commandChan store ev ve focused k ms =
       unless (Txt.null txt) $ do
         liftIO (store.swAddMessage cid O.User C.SsStreaming chatModel txt) >>= \case
           Right newMsg -> do
-            C.stChatCurrent .= Just cid
+            C.stChatCurrent .= Just (cid, C.SsStreaming)
             C.stChatInput . BE.editContentsL %= TxtZ.clearZipper
             handleChatUpdated commandChan cid
 
-            streamId <- liftIO $ C.StreamId <$> U.newUuidText
-            liftIO . BCh.writeBChan commandChan $ C.CmdChatSend cid streamId newMsg
+            liftIO . BCh.writeBChan commandChan $ C.CmdChatSend cid newMsg
 
 
           Left err -> do
@@ -490,7 +491,7 @@ runCommands commandChan eventChan store = forever $ do
       BCh.writeBChan eventChan . C.UePsList $ ps
 
 
-    C.CmdChatSend chatId streamId msg -> do
+    C.CmdChatSend chatId msg -> do
       store.swGetChat chatId >>= \case
         Just (_chat, hist1) -> do
           debouncedUpdateUi <- Deb.mkDebounce Deb.defaultDebounceSettings
@@ -499,13 +500,16 @@ runCommands commandChan eventChan store = forever $ do
             , Deb.debounceAction = BCh.writeBChan eventChan $ C.UeChatUpdated chatId
             }
 
+          streamingMessageId <- liftIO $ C.MessageId <$> U.newUuidText
+
           let
             hist2 = hist1 <&> \m -> O.Message m.msgRole m.msgText Nothing Nothing
             oMsg = O.Message msg.msgRole msg.msgText Nothing Nothing
             msgAndCtx = NE.fromList $ (reverse hist2) <> [oMsg]
 
             ops = O.ChatOps
-              { chatModelName = "qwen3:0.6b"
+              --{ chatModelName = "qwen3:0.6b"
+              { chatModelName = "gemma3:1b"
               , messages = msgAndCtx
               , tools = Nothing
               , format = Nothing
@@ -518,11 +522,11 @@ runCommands commandChan eventChan store = forever $ do
                   case cr.message of
                     Nothing -> pass
                     Just m -> do
-                      _ <- liftIO $ store.swAddStreamedChatContent chatId streamId m.role m.content
+                      _ <- liftIO $ store.swAddStreamedChatContent chatId streamingMessageId m.role m.content
                       debouncedUpdateUi
 
                   when (cr.done) $ do
-                    BCh.writeBChan eventChan $ C.UeChatStreamResponseDone chatId streamId
+                    BCh.writeBChan eventChan $ C.UeChatStreamResponseDone chatId
 
                 , pure   ()
                 )

@@ -42,7 +42,7 @@ data UiEvent
   | UePsList ![O.RunningModel]
   --
   | UeChatUpdated !ChatId
-  | UeChatStreamResponseDone !ChatId !StreamId
+  | UeChatStreamResponseDone !ChatId
   deriving stock (Show, Eq)
 
 
@@ -52,17 +52,18 @@ data Command
   --
   | CmdRefreshPs
   --
-  | CmdChatSend !ChatId !StreamId !ChatMessage
+  | CmdChatSend !ChatId !ChatMessage
   deriving stock (Show, Eq)
 
 newtype ChatId = ChatId Text
   deriving stock (Show, Eq, Ord, Generic)
 
-newtype StreamId = StreamId Text
-  deriving stock (Show, Eq, Ord, Generic)
-
 newtype ChatMessageId = ChatMessageId Text
   deriving stock (Show, Eq, Ord, Generic)
+
+newtype MessageId = MessageId Text
+  deriving stock (Show, Eq, Ord, Generic)
+
 
 data UiState = UiState
   { _stTick :: !Int
@@ -90,7 +91,7 @@ data UiState = UiState
 
   , _stFocusChat :: !(BF.FocusRing Name)
   , _stChatInput :: !(BE.Editor Text Name)
-  , _stChatCurrent :: !(Maybe ChatId)
+  , _stChatCurrent :: !(Maybe (ChatId, StreamingState))
   , _stChatMsgList :: !(BL.List Name ChatMessage)
   }
 
@@ -105,7 +106,7 @@ data Chat = Chat
 
 data ChatMessage = ChatMessage
   { msgChatId :: !ChatId
-  , msgId :: !Text
+  , msgId :: !MessageId
   , msgRole :: !O.Role
   , msgModel :: !Text
   , msgCreatedAt :: !DT.UTCTime
@@ -126,10 +127,10 @@ data StoreWrapper = StoreWrapper
   , swNewChat :: !(Text -> Text -> IO Chat)
   , swGetChat :: !(ChatId -> IO (Maybe (Chat, [ChatMessage])))
   , swSetCurrent :: !(ChatId -> IO ())
-  , swGetCurrent :: !(IO (Maybe (ChatId, Chat, [ChatMessage])))
+  , swGetCurrent :: !(IO (Maybe (ChatId, Chat, StreamingState, [ChatMessage])))
   , swAddMessage :: !(ChatId -> O.Role -> StreamingState -> Text -> Text -> IO (Either Text ChatMessage))
-  , swStreamDone :: !(ChatId -> StreamId -> IO ())
-  , swAddStreamedChatContent :: !(ChatId -> StreamId -> O.Role -> Text -> IO (Either Text ()))
+  , swStreamDone :: !(ChatId -> IO ())
+  , swAddStreamedChatContent :: !(ChatId -> MessageId -> O.Role -> Text -> IO (Either Text ()))
   }
 
 
@@ -156,7 +157,6 @@ data StreamingState
   deriving stock (Show, Eq, Ord)
 
 
-
 instance Ae.FromJSON AppConfig where
   parseJSON = Ae.genericParseJSON Ae.defaultOptions { Ae.fieldLabelModifier = renSnake 2 }
 
@@ -170,6 +170,7 @@ renSnake d = Ae.camelTo2 '_' . drop d
 
 ollamaUrl :: Text
 ollamaUrl = "http://localhost:11434"
+--ollamaUrl = "http://localhost:11435"
 
 
 makeLenses ''UiState

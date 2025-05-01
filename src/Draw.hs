@@ -212,7 +212,9 @@ drawChatInner st =
       in
       BL.renderListWithIndex (renderChatListItem msgListSelected) msgListSelected (st._stChatMsgList)
       <=>
-      B.padTop (B.Pad 1) (BE.renderEditor (B.txt . Txt.unlines) inputEditSelected st._stChatInput)
+      if ((snd <$> st._stChatCurrent) /= Just C.SsStreaming)
+      then B.padTop (B.Pad 1) (BE.renderEditor (B.txt . Txt.unlines) inputEditSelected st._stChatInput)
+      else spinner2 st
 
 
     renderChatListItem :: Bool -> Int -> Bool -> C.ChatMessage -> B.Widget C.Name
@@ -258,12 +260,17 @@ col' width txt' attr =
   (B.vLimit 1 . B.hLimit width $ B.fill ' ' <+> (B.withAttr (BA.attrName attr) $ B.txt txt'))
 
 spinnerText :: C.UiState -> Text
-spinnerText st =
-  fromMaybe "" $ spinnerFrames `atMay` ((st ^. C.stTick + 0) `mod` length spinnerFrames)
+spinnerText st = fromMaybe "" $ spinnerFrames `atMay` ((st ^. C.stTick + 0) `mod` length spinnerFrames)
 
 spinner :: C.UiState -> B.Widget n
-spinner st =
-  B.withAttr (B.attrName "colHeader") . B.txt $ spinnerText st
+spinner st = B.withAttr (B.attrName "colHeader") . B.txt $ spinnerText st
+
+
+spinnerText2 :: C.UiState -> Text
+spinnerText2 st = fromMaybe "" $ spinnerFrames2 `atMay` ((st ^. C.stTick + 0) `mod` length spinnerFrames2)
+
+spinner2 :: C.UiState -> B.Widget n
+spinner2 st = B.withAttr (B.attrName "colHeader") . B.txt $ spinnerText2 st
 ---------------------------------------------------------------------------------------------------
 
 
@@ -324,3 +331,5 @@ spinnerFrames = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]
 --spinnerFrames = ["-", "\\", "|", "/"]
 --spinnerFrames = ["◜", "◠", "◝", "◞", "◡", "◟"]
 
+spinnerFrames2 :: [Text]
+spinnerFrames2 = ["█▒▒▒▒▒▒▒▒▒", "███▒▒▒▒▒▒▒", "█████▒▒▒▒▒", "███████▒▒▒", "██████████"]
