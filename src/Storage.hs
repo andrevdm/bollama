@@ -193,11 +193,6 @@ newStoreWrapper mkStore = do
       pure . Right $ newMsg
 
 
-    streamDone :: MVar' WrapperState -> C.ChatId -> C.StreamId -> IO ()
-    streamDone st' chatId streamId = do
-      pass --TODO
-
-
     addStreamedChatContent :: MVar' WrapperState -> C.ChatId -> C.StreamId -> O.Role -> Text -> IO (Either Text ())
     addStreamedChatContent st' chatId streamId role text = do
       modifyMVar' st' $ \st -> do
@@ -234,4 +229,10 @@ newStoreWrapper mkStore = do
             let current2 = current1 {C.msgText = C.msgText current1 <> text}
             let st2 = st { cache = Map.insert chatId (True, chat, (current2, Just streamId) : rest) st.cache }
             pure (st2, Right ())
+
+
+    streamDone :: MVar' WrapperState -> C.ChatId -> C.StreamId -> IO ()
+    streamDone st' chatId streamId = do
+      pass --TODO
+
 

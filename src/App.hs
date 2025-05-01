@@ -76,9 +76,10 @@ runTui = do
        , _stFocusPs = BF.focusRing [C.NListPs]
        , _stLoadingPs = True
 
-       , _stFocusChat = BF.focusRing [C.NChatInputEdit]
+       , _stFocusChat = BF.focusRing [C.NChatInputEdit, C.NChatMsgList]
        , _stChatInput = BE.editorText C.NChatInputEdit (Just 5) ""
        , _stChatCurrent = Nothing
+       , _stChatMsgList = BL.list C.NChatMsgList mempty 1
        }
 
   _finalState <- B.customMain @C.Name initialVty buildVty (Just eventChan) app initialState

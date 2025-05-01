@@ -201,19 +201,21 @@ drawChatInner st =
       B.txt "chatLeft"
 
     drawChatMainRight =
-      let
-        strmTxt =
-          case st._stChatCurrent of
-            Nothing -> ""
-            Just (_chatId, _chat, []) -> ""
-            Just (_chatId, _chat, (m: _msgs)) -> m.msgText
-      in
-      (B.txtWrap strmTxt)
+      BL.renderListWithIndex (\ix _ e -> renderChatListItem ix e) (BF.focusGetCurrent st._stFocusModels == Just C.NChatMsgList) (BL.listMoveToEnd st._stChatMsgList)
       <=>
-      B.fill ' '
-      <=>
-      --TODO BE.renderEditor (B.txt . Txt.unlines) (BF.focusGetCurrent st._stFocusModels == Just C.NChatInputEdit) st._stChatInput
-      BE.renderEditor (B.txt . Txt.unlines) (True) st._stChatInput
+      --B.padTop (B.Pad 1) (BE.renderEditor (B.txt . Txt.unlines) (BF.focusGetCurrent st._stFocusModels == Just C.NChatInputEdit) st._stChatInput)
+      B.padTop (B.Pad 1) (BE.renderEditor (B.txt . Txt.unlines) (True) st._stChatInput)
+
+
+    renderChatListItem :: Int -> C.ChatMessage -> B.Widget C.Name
+    renderChatListItem ix msg =
+      let attrName = if ix `mod` 2 == 0 then "chatMsgA" else "chatMsgB" in
+      B.padBottom (B.Pad 1) $
+      B.withAttr (B.attrName attrName) $
+      B.hBox
+        [ col 15 (show msg.msgRole) attrName
+        , B.txtWrap msg.msgText
+        ]
 
 ---------------------------------------------------------------------------------------------------
 
@@ -266,6 +268,8 @@ attrMap =
   let
     orange = Vty.rgbColor @Int 0xfa 0xa5 0x00
     grey = Vty.rgbColor @Int 128 128 128
+    greyA = Vty.rgbColor @Int 100 100 80
+    greyB = Vty.rgbColor @Int 90 90 0
     skyBlue = Vty.rgbColor @Int 0x87 0xce 0xeb
     slateBlue = Vty.rgbColor @Int 0x6a 0x5a 0xcd
     pink = Vty.rgbColor @Int 0xff 0xc0 0xcb
@@ -273,7 +277,7 @@ attrMap =
 
   BA.attrMap Vty.defAttr [
       (BE.editAttr             , Vty.black `B.on` grey)
-    , (BE.editFocusedAttr      , Vty.black `B.on` Vty.blue)
+    , (BE.editFocusedAttr      , Vty.black `B.on` (Vty.rgbColor @Int 0x35 0xb6 0xac))
     , (BL.listSelectedAttr     , B.fg Vty.yellow)
     , (B.attrName "infoTitle"  , B.fg Vty.cyan)
     , (B.attrName "time"       , B.fg Vty.yellow)
@@ -294,6 +298,9 @@ attrMap =
     , (B.attrName "tabSelected"     , Vty.black `B.on` Vty.blue)
     , (B.attrName "tabUnselected"   , Vty.black `B.on` grey)
     , (B.attrName "tabFooter"       , Vty.black `B.on` grey)
+
+    , (B.attrName "chatMsgA"       , Vty.black `B.on` greyA)
+    , (B.attrName "chatMsgB"       , Vty.black `B.on` greyB)
 
     ]
 

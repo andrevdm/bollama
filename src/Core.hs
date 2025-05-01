@@ -27,6 +27,7 @@ data Name
   | NListPs
   --
   | NChatInputEdit
+  | NChatMsgList
   deriving stock (Show, Eq, Ord)
 
 
@@ -89,7 +90,8 @@ data UiState = UiState
 
   , _stFocusChat :: !(BF.FocusRing Name)
   , _stChatInput :: !(BE.Editor Text Name)
-  , _stChatCurrent :: !(Maybe (ChatId, Chat, [ChatMessage]))
+  , _stChatCurrent :: !(Maybe ChatId)
+  , _stChatMsgList :: !(BL.List Name ChatMessage)
   }
 
 

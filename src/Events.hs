@@ -204,10 +204,13 @@ handleAppEventGotTime _commandChan t = do
 handleChatUpdated :: BCh.BChan C.Command -> C.ChatId -> B.EventM C.Name C.UiState ()
 handleChatUpdated _commandChan chatId  = do
   use C.stChatCurrent >>= \case
-    Just (currentChatId, _, _) | currentChatId == chatId -> do
+    Just currentChatId | currentChatId == chatId -> do
       store <- use C.stStore
-      current <- liftIO $ store.swGetCurrent
-      C.stChatCurrent .= current
+      ms <- liftIO store.swGetCurrent >>= \case
+        Nothing -> pure []
+        Just (_, _, ms') -> pure ms'
+
+      C.stChatMsgList %= BL.listReplace (V.fromList . reverse $ ms) Nothing
 
     _ ->
       pass
@@ -385,21 +388,21 @@ handleTabChat commandChan store ev _ve focused k ms =
       let chatModel = "qwen3:0.6b" --TODO
       let chatName = "chatX" --TODO
 
-      (cid, chat1, ms1) <-
+      cid <-
         liftIO store.swGetCurrent >>= \case
-          Just v -> pure v
+          Just (cid', _, _) -> pure cid'
           Nothing -> do
             chat <- liftIO $ store.swNewChat chatName chatModel
             _ <- liftIO $ store.swSetCurrent chat.chatId
-            pure (chat.chatId, chat, [])
+            pure chat.chatId
 
       txt <- use (C.stChatInput . BE.editContentsL . to TxtZ.getText . to Txt.unlines . to Txt.strip)
 
       liftIO (store.swAddMessage cid O.User True chatModel txt) >>= \case
         Right newMsg -> do
-          C.stChatCurrent .= Just (cid, chat1, newMsg : ms1)
+          C.stChatCurrent .= Just cid
           C.stChatInput . BE.editContentsL %= TxtZ.clearZipper
-          --TODO C.stChatWaiting .= True
+          handleChatUpdated commandChan cid
 
           streamId <- liftIO $ C.StreamId <$> U.newUuidText
           liftIO . BCh.writeBChan commandChan $ C.CmdChatSend cid streamId newMsg
