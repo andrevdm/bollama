@@ -73,6 +73,7 @@ data UiState = UiState
   , _stNow :: !DT.UTCTime
   , _stDebug :: !Text
   , _stStore :: !StoreWrapper
+  , _stAttrMap :: !B.AttrMap
 
   , _stFooterWidget :: !(Maybe (Name, UiState -> B.Widget Name))
 

@@ -10,20 +10,23 @@ module App where
 
 import           Verset
 
+import Brick.AttrMap qualified as BA
 import Brick.BChan qualified as BCh
 import Brick.Focus qualified as BF
 import Brick qualified as B
 import Brick.Widgets.Edit qualified as BE
 import Brick.Widgets.List qualified as BL
 import Data.Time qualified as DT
-import Graphics.Vty.CrossPlatform qualified as Vty
 import Graphics.Vty qualified as Vty
+import Graphics.Vty.CrossPlatform qualified as Vty
+import Text.Pretty.Simple (pPrint)
 
 import Core qualified as C
 import Config qualified as Cfg
 import Draw qualified as D
 import Events qualified as E
 import Storage qualified as Sr
+import Utils qualified as U
 
 
 runTui :: IO ()
@@ -36,11 +39,13 @@ runTui = do
   void . forkIO $ E.runCommands commandChan eventChan store
   void . forkIO $ E.runTick eventChan
 
+  attrMap <- readAttrMap
+
   let app = B.App {
       B.appDraw = D.drawUI
     , B.appChooseCursor = B.showFirstCursor
     , B.appHandleEvent = E.handleEvent commandChan
-    , B.appAttrMap = const D.attrMap
+    , B.appAttrMap = C._stAttrMap
     , B.appStartEvent = liftIO $ do
        BCh.writeBChan commandChan C.CmdRefreshModelList
     }
@@ -60,7 +65,7 @@ runTui = do
        , _stNow = now
        , _stDebug = ""
        , _stStore = store
-
+       , _stAttrMap = attrMap
        , _stFooterWidget = Nothing
 
        , _stModels = []
@@ -85,6 +90,9 @@ runTui = do
   _finalState <- B.customMain @C.Name initialVty buildVty (Just eventChan) app initialState
   pass
 
-
-
-
+  where
+    readAttrMap :: IO BA.AttrMap
+    readAttrMap = do
+      (_es, m) <- U.attrMapFromFile "defaultAttrs.csv"
+      print _es
+      pure m

@@ -8,7 +8,7 @@
 
 module Draw
   ( drawUI
-  , attrMap
+  --, attrMap
   )
   where
 
@@ -275,55 +275,10 @@ spinner2 st = B.withAttr (B.attrName "colHeader") . B.txt $ spinnerText2 st
 
 
 
-
 tabName :: C.Tab -> Text
 tabName C.TabModels = "F2: Models"
 tabName C.TabPs = "F3: Running"
 tabName C.TabChat = "F4: Chat"
-
-
-
-attrMap :: BA.AttrMap
-attrMap =
-  let
-    orange = Vty.rgbColor @Int 0xfa 0xa5 0x00
-    grey = Vty.rgbColor @Int 128 128 128
-    greyA = Vty.rgbColor @Int 100 100 80
-    greyB = Vty.rgbColor @Int 90 90 0
-    skyBlue = Vty.rgbColor @Int 0x87 0xce 0xeb
-    slateBlue = Vty.rgbColor @Int 0x6a 0x5a 0xcd
-    pink = Vty.rgbColor @Int 0xff 0xc0 0xcb
-  in
-
-  BA.attrMap Vty.defAttr [
-      (BE.editAttr             , Vty.black `B.on` grey)
-    , (BE.editFocusedAttr      , Vty.black `B.on` (Vty.rgbColor @Int 0x35 0xb6 0xac))
-    , (BL.listSelectedAttr     , B.fg Vty.yellow)
-    , (B.attrName "infoTitle"  , B.fg Vty.cyan)
-    , (B.attrName "time"       , B.fg Vty.yellow)
-    , (B.attrName "colHeader"  , Vty.withStyle (B.fg Vty.blue) Vty.bold)
-    , (B.attrName "titleText"  , B.fg Vty.green)
-    , (B.attrName "normalText" , B.fg Vty.white)
-    , (B.attrName "normalText2", B.fg orange)
-
-    , (B.attrName "footer"          , Vty.black `B.on` grey)
-    , (B.attrName "footerTitle"     , Vty.white `B.on` Vty.black)
-    , (B.attrName "footerMessage"   , Vty.black `B.on` grey)
-    , (B.attrName "version"         , Vty.yellow `B.on` grey)
-
-
-    , (B.attrName "msgInfo"         , Vty.black `B.on` Vty.blue)
-    , (B.attrName "msgError"        , Vty.yellow `B.on` Vty.blue)
-
-    , (B.attrName "tabSelected"     , Vty.black `B.on` Vty.blue)
-    , (B.attrName "tabUnselected"   , Vty.black `B.on` grey)
-    , (B.attrName "tabFooter"       , Vty.black `B.on` grey)
-
-    , (B.attrName "chatMsgA"        , Vty.black `B.on` greyA)
-    , (B.attrName "chatMsgB"        , Vty.black `B.on` greyB)
-    , (B.attrName "chatMsgSelected" , Vty.black `B.on` Vty.green)
-
-    ]
 
 
 spinnerFrames :: [Text]

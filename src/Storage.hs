@@ -16,7 +16,6 @@ import           Verset
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TVar qualified as TV
 import Control.Concurrent.MVar.Strict (MVar', newMVar', modifyMVar', modifyMVar'_, withMVar')
-import Data.Text.IO qualified as Txt
 import Data.Time qualified as DT
 import Data.Map.Strict qualified as Map
 import Ollama qualified as O

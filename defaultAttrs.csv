@@ -1,0 +1,22 @@
+--default            , red         ,  blue
+editAttr           , black       ,  grey
+editFocusedAttr    , black       ,  #35b6ac
+listSelectedAttr   , yellow      ,  -
+infoTitle          , cyan        ,  -
+time               , yellow      ,  -
+colHeader          , blue        ,  -               , bold
+titleText          , green       ,  -
+normalText         , white       ,  -
+normalText2        , orange      ,  -
+footer             , black       ,  grey
+footerTitle        , white       ,  black
+footerMessage      , black       ,  grey
+version            , yellow      ,  grey
+msgInfo            , black       ,  blue
+msgError           , yellow      ,  blue
+tabSelected        , black       ,  blue
+tabUnselected      , black       ,  grey
+tabFooter          , black       ,  grey
+chatMsgA           , black       ,  greyA
+chatMsgB           , black       ,  greyB
+chatMsgSelected    , black       ,  green

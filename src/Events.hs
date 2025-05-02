@@ -93,6 +93,10 @@ handleEvent commandChan ev = do
           unless (st._stTab == C.TabChat) $ do
             C.stLoadingPs .= True
             C.stTab .= C.TabChat
+
+        (_, _, _, Vty.KFun 12, []) -> do
+          (_es, m) <- liftIO $ U.attrMapFromFile "defaultAttrs.csv"
+          C.stAttrMap .= m
         ---------------------------------------------------------------------------------------------------
 
 
