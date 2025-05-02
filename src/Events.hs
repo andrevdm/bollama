@@ -55,8 +55,9 @@ handleEvent commandChan ev = do
         focused =
           case st._stTab of
             C.TabModels -> BF.focusGetCurrent st._stFocusModels
-            C.TabPs     -> BF.focusGetCurrent st._stFocusPs
-            C.TabChat   -> BF.focusGetCurrent st._stFocusChat
+            C.TabPs -> BF.focusGetCurrent st._stFocusPs
+            C.TabChat -> BF.focusGetCurrent st._stFocusChat
+            C.TabColours -> Nothing
 
 
       case (st._stTab, footerWidgetName, focused, k, ms) of
@@ -94,6 +95,9 @@ handleEvent commandChan ev = do
             C.stLoadingPs .= True
             C.stTab .= C.TabChat
 
+        (_, _, _, Vty.KFun 11, []) -> do
+            C.stTab .= C.TabColours
+
         (_, _, _, Vty.KFun 12, []) -> do
           (_es, m) <- liftIO $ U.attrMapFromFile "defaultAttrs.csv"
           C.stAttrMap .= m
@@ -106,6 +110,7 @@ handleEvent commandChan ev = do
         (C.TabModels, _, _, _, _) -> handleTabModels commandChan ev ve focused k ms
         (C.TabPs, _, _, _, _) -> handleTabPs commandChan ev ve focused k ms
         (C.TabChat, _, _, _, _) -> handleTabChat commandChan st._stStore ev ve focused k ms
+        (C.TabColours, _, _, _, _) -> handleTabColours commandChan ev ve focused k ms
         ---------------------------------------------------------------------------------------------------
 
         _ -> pass
@@ -438,6 +443,23 @@ handleTabChat commandChan store ev ve focused k ms =
           Left err -> do
             C.stDebug .= "error: " <> err
             --TODO
+---------------------------------------------------------------------------------------------------
+
+
+
+---------------------------------------------------------------------------------------------------
+-- Colours Tab Events
+---------------------------------------------------------------------------------------------------
+handleTabColours
+  :: BCh.BChan C.Command
+  -> B.BrickEvent C.Name C.UiEvent
+  -> Vty.Event
+  -> Maybe C.Name
+  -> Vty.Key
+  -> [Vty.Modifier]
+  -> B.EventM C.Name C.UiState ()
+handleTabColours _commandChan _ev ve _focused _k _ms = do
+  B.zoom C.stColoursList $ BL.handleListEventVi BL.handleListEvent ve
 ---------------------------------------------------------------------------------------------------
 
 

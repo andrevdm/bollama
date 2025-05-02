@@ -92,8 +92,9 @@ drawTabs st =
     drawTabsContent =
       case st._stTab of
         C.TabModels -> drawModelsInner st
-        C.TabPs     -> drawPsInner st
-        C.TabChat   -> drawChatInner st
+        C.TabPs -> drawPsInner st
+        C.TabChat -> drawChatInner st
+        C.TabColours -> drawColours st
 ---------------------------------------------------------------------------------------------------
 
 
@@ -237,6 +238,26 @@ drawChatInner st =
 
 
 ---------------------------------------------------------------------------------------------------
+-- Colours
+---------------------------------------------------------------------------------------------------
+drawColours :: C.UiState -> B.Widget C.Name
+drawColours st =
+  BL.renderList go True st._stColoursList
+
+  where
+    go :: Bool -> Text -> B.Widget C.Name
+    go _ n =
+      B.padBottom (B.Pad 1) $
+      B.hBox
+        [ col 20 n ""
+        , col 30 "abcdefgABCDEFG123456()_" (Txt.unpack $ "_fg_" <> n)
+        , col 30 "                       " (Txt.unpack $ "_bg_" <> n)
+        ]
+---------------------------------------------------------------------------------------------------
+
+
+
+---------------------------------------------------------------------------------------------------
 -- Shared
 ---------------------------------------------------------------------------------------------------
 colTe :: (Int -> Text -> t -> t1) -> Int -> Text -> t -> t1
@@ -279,6 +300,7 @@ tabName :: C.Tab -> Text
 tabName C.TabModels = "F2: Models"
 tabName C.TabPs = "F3: Running"
 tabName C.TabChat = "F4: Chat"
+tabName C.TabColours = "F11: Colours"
 
 
 spinnerFrames :: [Text]

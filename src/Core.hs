@@ -28,6 +28,8 @@ data Name
   --
   | NChatInputEdit
   | NChatMsgList
+  --
+  | NColoursList
   deriving stock (Show, Eq, Ord)
 
 
@@ -94,6 +96,8 @@ data UiState = UiState
   , _stChatInput :: !(BE.Editor Text Name)
   , _stChatCurrent :: !(Maybe (ChatId, StreamingState))
   , _stChatMsgList :: !(BL.List Name ChatMessage)
+
+  , _stColoursList :: !(BL.List Name Text)
   }
 
 
@@ -146,6 +150,7 @@ data Tab
   = TabModels
   | TabPs
   | TabChat
+  | TabColours
   deriving stock (Show, Eq, Ord, Enum, Bounded)
 
 data AppConfig = AppConfig

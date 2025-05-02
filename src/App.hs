@@ -17,9 +17,9 @@ import Brick qualified as B
 import Brick.Widgets.Edit qualified as BE
 import Brick.Widgets.List qualified as BL
 import Data.Time qualified as DT
+import Data.Vector qualified as V
 import Graphics.Vty qualified as Vty
 import Graphics.Vty.CrossPlatform qualified as Vty
-import Text.Pretty.Simple (pPrint)
 
 import Core qualified as C
 import Config qualified as Cfg
@@ -85,6 +85,8 @@ runTui = do
        , _stChatInput = BE.editorText C.NChatInputEdit (Just 5) ""
        , _stChatCurrent = Nothing
        , _stChatMsgList = BL.list C.NChatMsgList mempty 1
+
+       , _stColoursList = BL.list C.NColoursList (V.fromList . sort $ fst <$> U.knownColours) 1
        }
 
   _finalState <- B.customMain @C.Name initialVty buildVty (Just eventChan) app initialState
