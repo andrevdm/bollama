@@ -284,14 +284,14 @@ spinnerText :: C.UiState -> Text
 spinnerText st = fromMaybe "" $ spinnerFrames `atMay` ((st ^. C.stTick + 0) `mod` length spinnerFrames)
 
 spinner :: C.UiState -> B.Widget n
-spinner st = B.withAttr (B.attrName "colHeader") . B.txt $ spinnerText st
+spinner st = B.withAttr (B.attrName "spinner1") . B.txt $ spinnerText st
 
 
 spinnerText2 :: C.UiState -> Text
 spinnerText2 st = fromMaybe "" $ spinnerFrames2 `atMay` ((st ^. C.stTick + 0) `mod` length spinnerFrames2)
 
 spinner2 :: C.UiState -> B.Widget n
-spinner2 st = B.withAttr (B.attrName "colHeader") . B.txt $ spinnerText2 st
+spinner2 st = B.withAttr (B.attrName "spinner2") . B.txt $ spinnerText2 st
 ---------------------------------------------------------------------------------------------------
 
 
@@ -309,4 +309,25 @@ spinnerFrames = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]
 --spinnerFrames = ["◜", "◠", "◝", "◞", "◡", "◟"]
 
 spinnerFrames2 :: [Text]
-spinnerFrames2 = ["█▒▒▒▒▒▒▒▒▒", "███▒▒▒▒▒▒▒", "█████▒▒▒▒▒", "███████▒▒▒", "██████████"]
+--spinnerFrames2 = ["█▒▒▒▒▒▒▒▒▒", "███▒▒▒▒▒▒▒", "█████▒▒▒▒▒", "███████▒▒▒", "██████████"]
+spinnerFrames2 =
+  let x =
+       [ "🖋️               "
+       , ".🖋️              "
+       , "..🖋️             "
+       , "...🖋️            "
+       , "....🖋️           "
+       , ".....🖋️          "
+       , "......🖋️         "
+       , ".......🖋️        "
+       , "........🖋️       "
+       , ".........🖋️      "
+       , "..........🖋️     "
+       , "...........🖋️    "
+       , "............🖋️   "
+       , ".............🖋️  "
+       , "..............🖋️ "
+       , "...............🖋️"
+       ]
+  in
+  x
