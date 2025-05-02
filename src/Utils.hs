@@ -196,6 +196,8 @@ attrMapFromFile file = do
     readStyle "italic" = Right $ Just Vty.italic
     readStyle "strikethrough" = Right $ Just Vty.strikethrough
     readStyle "-" = Right $ Just Vty.defaultStyleMask
+    readStyle "_" = Right $ Just Vty.defaultStyleMask
+    readStyle "" = Right $ Just Vty.defaultStyleMask
     readStyle x = Left $ "Unknown style: " <> x
 
 
@@ -484,3 +486,7 @@ knownColours =
     , ("yellow4",             Vty.rgbColor @Int 0x87 0x87 0x00)
     , ("yellow6",             Vty.rgbColor @Int 0x87 0xAF 0x00)
     ]
+
+
+logIt :: (Show a) => a -> IO ()
+logIt v = Txt.appendFile "/home/andre/temp/a.txt" (show v)

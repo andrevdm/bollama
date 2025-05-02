@@ -1,23 +1,22 @@
---default                , red             ,  blue
-chatMsgA               , black           ,  #9bb5ad
-chatMsgB               , black           ,  #81a59b
-chatMsgSelected        , black           ,  green
-colHeader              , blue            ,  -               , bold
-editAttr               , black           ,  grey
-editFocusedAttr        , black           ,  #87b2d9
-footer                 , black           ,  grey
-footerMessage          , black           ,  grey
-footerTitle            , white           ,  black
-infoTitle              , cyan            ,  -
---listAttr               , #c0c0c0         ,  #262626
-listAttr               , #c0c0c0         ,  black
-listSelectedAttr       , black           ,  mediumPurple4
-msgError               , yellow          ,  blue
-msgInfo                , black           ,  blue
-tabFooter              , black           ,  grey
-tabSelected            , black           ,  blue
-tabUnselected          , black           ,  grey
-time                   , yellow          ,  -
-version                , yellow          ,  grey
-spinner1               , lightSkyBlue1   ,  -
-spinner2               , deepPink3       ,  -
+--default                    , red                   ,  blue
+chatMsgA                   , black                 ,  wheat4
+chatMsgB                   , black                 ,  tan
+chatMsgSelected            , black                 ,  -
+colHeader                  , deepSkyBlue2          ,  -               , bold
+editAttr                   , black                 ,  grey
+editFocusedAttr            , black                 ,  skyBlue
+footer                     , black                 ,  grey
+footerMessage              , black                 ,  grey
+footerTitle                , white                 ,  black
+infoTitle                  , cyan                  ,  -
+listAttr                   , white                 ,  grey7
+listSelectedFocusedAttr    , black                 ,  cornflowerBlue   ,
+msgError                   , yellow                ,  blue
+msgInfo                    , black                 ,  blue
+tabFooter                  , black                 ,  grey
+tabSelected                , black                 ,  cornflowerBlue
+tabUnselected              , black                 ,  grey
+time                       , yellow                ,  -
+version                    , yellow                ,  grey
+spinner1                   , lightSkyBlue1         ,  -
+spinner2                   , deepPink3             ,  -

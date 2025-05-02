@@ -410,7 +410,7 @@ handleTabChat commandChan store ev ve focused k ms =
       B.zoom C.stChatInput $ BE.handleEditorEvent ev
 
     (Just C.NChatMsgList, _, _) -> do
-      C.stDebug .= show (k, ms)
+      --C.stDebug .= show (k, ms)
       B.zoom C.stChatMsgList $ BL.handleListEventVi BL.handleListEvent ve
 
     _ -> pass
