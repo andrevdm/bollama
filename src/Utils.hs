@@ -148,6 +148,7 @@ attrMapFromFile file = do
 
   where
     parseLine :: Map Text Vty.Color -> [Text] -> Either Text (BA.AttrName, Vty.Attr)
+    parseLine clrs [n, f] = parseLine clrs [n, f, "-", "-"]
     parseLine clrs [n, f, b] = parseLine clrs [n, f, b, "-"]
     parseLine clrs [n1, f1, b1, s1] = do
       f2 <- readColour clrs . Txt.strip $ f1

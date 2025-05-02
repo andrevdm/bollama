@@ -133,7 +133,9 @@ handleAppEvent commandChan uev = do
     C.UeGotTime t -> handleAppEventGotTime commandChan t
     C.UeChatUpdated chatId -> handleChatUpdated commandChan chatId
     C.UeChatStreamResponseDone chatId -> handleChatStreamResponseDone commandChan chatId
-
+    C.UeGotChatsList chats -> do
+      C.stDebug .= "Got chats list: " <> show (length chats)
+      C.stChatsList %= BL.listMoveTo 0 . BL.listReplace (V.fromList chats) Nothing
 
 
 handleAppEventTick :: BCh.BChan C.Command -> Int -> B.EventM C.Name C.UiState ()
@@ -413,6 +415,9 @@ handleTabChat commandChan store ev ve focused k ms =
       --C.stDebug .= show (k, ms)
       B.zoom C.stChatMsgList $ BL.handleListEventVi BL.handleListEvent ve
 
+    (Just C.NChatsList, _, _) -> do
+      B.zoom C.stChatsList $ BL.handleListEventVi BL.handleListEvent ve
+
     _ -> pass
 
   where
@@ -566,6 +571,10 @@ runCommands commandChan eventChan store = forever $ do
         Nothing -> do
           --TODO send message for error
           pass
+
+    C.CmdRefreshChatsList -> do
+      chats <- store.swListChats
+      BCh.writeBChan eventChan $ C.UeGotChatsList chats
 
 
       pass

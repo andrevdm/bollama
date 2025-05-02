@@ -28,6 +28,7 @@ data Name
   --
   | NChatInputEdit
   | NChatMsgList
+  | NChatsList
   --
   | NColoursList
   deriving stock (Show, Eq, Ord)
@@ -43,6 +44,7 @@ data UiEvent
   --
   | UePsList ![O.RunningModel]
   --
+  | UeGotChatsList ![Chat]
   | UeChatUpdated !ChatId
   | UeChatStreamResponseDone !ChatId
   deriving stock (Show, Eq)
@@ -54,6 +56,7 @@ data Command
   --
   | CmdRefreshPs
   --
+  | CmdRefreshChatsList
   | CmdChatSend !ChatId !ChatMessage
   deriving stock (Show, Eq)
 
@@ -96,10 +99,10 @@ data UiState = UiState
   , _stChatInput :: !(BE.Editor Text Name)
   , _stChatCurrent :: !(Maybe (ChatId, StreamingState))
   , _stChatMsgList :: !(BL.List Name ChatMessage)
+  , _stChatsList :: !(BL.List Name Chat)
 
   , _stColoursList :: !(BL.List Name Text)
   }
-
 
 data Chat = Chat
   { chatId :: !ChatId

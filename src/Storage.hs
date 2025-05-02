@@ -18,6 +18,7 @@ import Control.Concurrent.STM.TVar qualified as TV
 import Control.Concurrent.MVar.Strict (MVar', newMVar', modifyMVar', modifyMVar'_, withMVar')
 import Data.Time qualified as DT
 import Data.Map.Strict qualified as Map
+import Data.Text qualified as Txt
 import Ollama qualified as O
 
 import Core qualified as C
@@ -86,16 +87,28 @@ newStoreWrapper mkStore = do
 
   where
     listChats :: MVar' WrapperState -> IO [C.Chat]
-    listChats st' =
-      withMVar' st' $ \st -> st.store.srListChats
+    listChats st' = do
+      withMVar' st' $ \st -> do
+        -- Get the chats from the store
+        stored <- st.store.srListChats
+        -- Temp chats are not stored
+        let tmp = mapMaybe (\(_, c, _) -> if Txt.isInfixOf "#" c.chatName then Just c else Nothing) (Map.elems st.cache)
+        pure . sortOn C.chatName $ stored <> tmp
 
 
     evict :: MVar' WrapperState -> a -> IO a
     evict st' a = do
-      modifyMVar'_ st' $ \st -> do
-        let vs2 = Map.filterWithKey (\k (streamingSts, _, _) -> streamingSts == C.SsStreaming || Just k /= st.currentId) st.cache
-        pure $ st { cache = vs2 }
       pure a
+      --modifyMVar'_ st' $ \st -> do
+      --  let vs2 = Map.filterWithKey
+      --            (\k (streamingSts, c, _) ->
+      --              streamingSts == C.SsStreaming
+      --              || Just k == st.currentId
+      --              || Txt.isInfixOf "#" c.chatName
+      --            ) st.cache
+
+      --  pure $ st { cache = vs2 }
+      --pure a
 
 
     newChat :: MVar' WrapperState -> Text -> Text -> IO C.Chat
@@ -113,7 +126,12 @@ newStoreWrapper mkStore = do
 
       modifyMVar'_ st' $ \st -> do
         let cache2 = Map.insert chatId (C.SsNotStreaming, chat, []) st.cache
-        _ <- st.store.srSaveChat chat
+
+        -- Store chats, unless there are temporary chats
+        unless (Txt.isInfixOf "#" chatName) $
+          st.store.srSaveChat chat
+
+        U.logIt $ Map.elems cache2
         pure st { cache = cache2 }
 
       pure chat

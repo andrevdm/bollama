@@ -1,4 +1,5 @@
 --default                    , red                   ,  blue
+borderSelectedLabel        , violet                ,  -
 chatMsgA                   , black                 ,  wheat4
 chatMsgB                   , black                 ,  tan
 chatMsgSelected            , black                 ,  -
@@ -10,13 +11,14 @@ footerMessage              , black                 ,  grey
 footerTitle                , white                 ,  black
 infoTitle                  , cyan                  ,  -
 listAttr                   , white                 ,  grey7
+listSelectedAttr           , cornflowerBlue        ,  -
 listSelectedFocusedAttr    , black                 ,  cornflowerBlue   ,
 msgError                   , yellow                ,  blue
 msgInfo                    , black                 ,  blue
+spinner1                   , lightSkyBlue1         ,  -
+spinner2                   , deepPink3             ,  -
 tabFooter                  , black                 ,  grey
 tabSelected                , black                 ,  cornflowerBlue
 tabUnselected              , black                 ,  grey
 time                       , yellow                ,  -
 version                    , yellow                ,  grey
-spinner1                   , lightSkyBlue1         ,  -
-spinner2                   , deepPink3             ,  -

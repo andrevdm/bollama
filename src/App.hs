@@ -33,6 +33,10 @@ runTui :: IO ()
 runTui = do
   store <- Sr.newStoreWrapper Sr.newInMemStore
 
+  -- Create a temporary chat
+  -- TODO config default model
+  _ <- store.swNewChat "#Temp" ""
+
   eventChan <- BCh.newBChan 1000
   commandChan <- BCh.newBChan @C.Command 1000
 
@@ -48,6 +52,7 @@ runTui = do
     , B.appAttrMap = C._stAttrMap
     , B.appStartEvent = liftIO $ do
        BCh.writeBChan commandChan C.CmdRefreshModelList
+       BCh.writeBChan commandChan C.CmdRefreshChatsList
     }
 
   let buildVty = Vty.mkVty Vty.defaultConfig
@@ -81,10 +86,11 @@ runTui = do
        , _stFocusPs = BF.focusRing [C.NListPs]
        , _stLoadingPs = True
 
-       , _stFocusChat = BF.focusRing [C.NChatInputEdit, C.NChatMsgList]
+       , _stFocusChat = BF.focusRing [C.NChatInputEdit, C.NChatsList, C.NChatMsgList]
        , _stChatInput = BE.editorText C.NChatInputEdit (Just 5) ""
        , _stChatCurrent = Nothing
        , _stChatMsgList = BL.list C.NChatMsgList mempty 1
+       , _stChatsList = BL.list C.NChatsList mempty 1
 
        , _stColoursList = BL.list C.NColoursList (V.fromList . sort $ fst <$> U.knownColours) 1
        }

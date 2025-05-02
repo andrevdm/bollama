@@ -70,8 +70,6 @@ footer st =
 drawTabs :: C.UiState -> B.Widget C.Name
 drawTabs st =
   drawTabHeader
-  -- <=>
-  --(B.padBottom (B.Pad 0) . B.vLimit 1 . B.withAttr (B.attrName "tabSelected") $ B.fill ' ')
   <=>
   (B.padLeft (B.Pad 2) . B.padRight (B.Pad 2) . B.withBorderStyle BBS.unicode . BB.border  $ drawTabsContent)
 
@@ -115,7 +113,8 @@ drawPsInner st =
   <=>
   if st._stLoadingPs
   then (spinner st <=> B.fill ' ')
-  else BL.renderList (\_ p -> renderPsListItem p) False st._stPs
+  else
+    BL.renderList (\_ p -> renderPsListItem p) (BF.focusGetCurrent st._stFocusPs == Just C.NListPs) st._stPs
 
   where
     renderPsListItem p =
@@ -153,7 +152,8 @@ drawModelsInner st =
   <=>
   if st._stModelListLoading
   then spinner st
-  else BL.renderList (\_ e -> renderModelListItem e) False (st._stModelsList)
+  else
+    BL.renderList (\_ e -> renderModelListItem e) (BF.focusGetCurrent st._stFocusModels == Just C.NModelsList) (st._stModelsList)
 
   where
     renderModelListItem :: C.ModelItem -> B.Widget C.Name
@@ -200,22 +200,33 @@ drawChatInner st =
       B.txt "chatTop"
 
     drawChatBottom =
-      --B.vLimit 1 . B.withAttr (B.attrName "tabFooter") $ B.txt "" <+> B.fill ' '
       B.txt "chatBottom"
 
     drawChatMainLeft =
-      B.txt "chatLeft"
+      let selected = BF.focusGetCurrent st._stFocusChat == Just C.NChatsList
+      in
+      B.hLimit 40 $
+      borderWithLabel' selected "Chats" $
+      BL.renderList renderChatItem selected (st._stChatsList)
 
     drawChatMainRight =
       let
         inputEditSelected = BF.focusGetCurrent st._stFocusChat == Just C.NChatInputEdit
         msgListSelected = BF.focusGetCurrent st._stFocusChat == Just C.NChatMsgList
       in
-      BL.renderListWithIndex (renderChatListItem msgListSelected) msgListSelected (st._stChatMsgList)
+      borderWithLabel' msgListSelected "Conversation"
+      ( BL.renderListWithIndex (renderChatListItem msgListSelected) msgListSelected (st._stChatMsgList)
+      )
       <=>
-      if ((snd <$> st._stChatCurrent) /= Just C.SsStreaming)
-      then B.padTop (B.Pad 1) (BE.renderEditor (B.txt . Txt.unlines) inputEditSelected st._stChatInput)
-      else spinner2 st
+      B.vLimit 8
+      (
+        borderWithLabel' inputEditSelected "Input"
+        ( case (snd <$> st._stChatCurrent) of
+            Nothing -> B.fill ' '
+            Just C.SsStreaming -> (BE.renderEditor (B.txt . Txt.unlines) inputEditSelected st._stChatInput)
+            Just C.SsNotStreaming -> spinner2 st
+        )
+      )
 
 
     renderChatListItem :: Bool -> Int -> Bool -> C.ChatMessage -> B.Widget C.Name
@@ -233,6 +244,12 @@ drawChatInner st =
         , B.txtWrap msg.msgText
         ]
 
+
+    renderChatItem :: Bool -> C.Chat -> B.Widget C.Name
+    renderChatItem _selected chat =
+      B.vLimit 1 $
+      B.txt chat.chatName
+
 ---------------------------------------------------------------------------------------------------
 
 
@@ -247,7 +264,6 @@ drawColours st =
   where
     go :: Bool -> Text -> B.Widget C.Name
     go _ n =
-      B.padBottom (B.Pad 1) $
       B.hBox
         [ col 20 n ""
         , col 30 "abcdefgABCDEFG123456()_" (Txt.unpack $ "_fg_" <> n)
@@ -260,6 +276,14 @@ drawColours st =
 ---------------------------------------------------------------------------------------------------
 -- Shared
 ---------------------------------------------------------------------------------------------------
+borderWithLabel' :: Bool -> Text -> B.Widget n -> B.Widget n
+borderWithLabel' selected txt' w =
+  let styler = if selected then (B.withAttr (B.attrName "borderSelectedLabel")) else identity
+  in
+  BB.borderWithLabel (styler $ B.txt txt') $
+  w
+
+
 colTe :: (Int -> Text -> t -> t1) -> Int -> Text -> t -> t1
 colTe colF width txt' attr =
   if (Txt.length txt' > width)
