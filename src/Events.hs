@@ -65,6 +65,10 @@ handleEvent commandChan ev = do
         -- Global
         ---------------------------------------------------------------------------------------------------
         (_, _, _, Vty.KChar 'q', [Vty.MCtrl]) -> B.halt
+
+        (_, _, _, Vty.KChar 'u', [Vty.MCtrl]) -> do
+          (_es, m) <- liftIO $ U.attrMapFromFile "defaultAttrs.csv"
+          C.stAttrMap .= m
         ---------------------------------------------------------------------------------------------------
 
 
@@ -97,10 +101,6 @@ handleEvent commandChan ev = do
 
         (_, _, _, Vty.KFun 11, []) -> do
             C.stTab .= C.TabColours
-
-        (_, _, _, Vty.KFun 12, []) -> do
-          (_es, m) <- liftIO $ U.attrMapFromFile "defaultAttrs.csv"
-          C.stAttrMap .= m
         ---------------------------------------------------------------------------------------------------
 
 
@@ -410,7 +410,7 @@ handleTabChat commandChan store ev ve focused k ms =
       B.zoom C.stChatInput $ BE.handleEditorEvent ev
 
     (Just C.NChatMsgList, _, _) -> do
-      --C.stDebug .= "chat msg list" <> (show (k, ms))
+      C.stDebug .= show (k, ms)
       B.zoom C.stChatMsgList $ BL.handleListEventVi BL.handleListEvent ve
 
     _ -> pass
