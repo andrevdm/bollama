@@ -35,7 +35,8 @@ runTui = do
 
   -- Create a temporary chat
   -- TODO config default model
-  _ <- store.swNewChat "#Temp" ""
+  _ <- store.swNewChat "#Temp" "" C.SsNotStreaming
+  _ <- store.swNewChat "#Temp 2" "" C.SsNotStreaming
 
   eventChan <- BCh.newBChan 1000
   commandChan <- BCh.newBChan @C.Command 1000

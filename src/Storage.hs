@@ -111,8 +111,8 @@ newStoreWrapper mkStore = do
       --pure a
 
 
-    newChat :: MVar' WrapperState -> Text -> Text -> IO C.Chat
-    newChat st' chatName chatModel = do
+    newChat :: MVar' WrapperState -> Text -> Text -> C.StreamingState -> IO C.Chat
+    newChat st' chatName chatModel streaming = do
       chatId <- C.ChatId <$> U.newUuidText
       now <- DT.getCurrentTime
 
@@ -125,7 +125,7 @@ newStoreWrapper mkStore = do
             }
 
       modifyMVar'_ st' $ \st -> do
-        let cache2 = Map.insert chatId (C.SsNotStreaming, chat, []) st.cache
+        let cache2 = Map.insert chatId (streaming, chat, []) st.cache
 
         -- Store chats, unless there are temporary chats
         unless (Txt.isInfixOf "#" chatName) $
@@ -137,17 +137,29 @@ newStoreWrapper mkStore = do
       pure chat
 
 
-    getChat :: MVar' WrapperState -> C.ChatId -> IO (Maybe (C.Chat, [C.ChatMessage]))
+    getChat :: MVar' WrapperState -> C.ChatId -> IO (Maybe (C.Chat, [C.ChatMessage], C.StreamingState))
     getChat st' chatId = do
-      withMVar' st' $ \st -> do
-        case Map.lookup chatId st.cache of
-          Nothing -> st.store.srLoadChat chatId
-          Just (_streamingSts, chat, ms) -> pure $ Just (chat, ms)
+      withMVar' st' $ \st -> getChat' st chatId
+
+    getChat' :: WrapperState -> C.ChatId -> IO (Maybe (C.Chat, [C.ChatMessage], C.StreamingState))
+    getChat' st chatId = do
+      case Map.lookup chatId st.cache of
+        Just (streamingSts, chat, ms) -> pure $ Just (chat, ms, streamingSts)
+        Nothing -> do
+          st.store.srLoadChat chatId >>= \case
+            Nothing -> pure Nothing
+            Just (chat, ms) -> pure $ Just (chat, ms, C.SsNotStreaming)
 
 
-    setCurrent :: MVar' WrapperState -> C.ChatId -> IO ()
-    setCurrent st' chatId = do
-      modifyMVar'_ st' $ \st -> pure st { currentId = Just chatId }
+    setCurrent :: MVar' WrapperState -> Maybe C.ChatId -> IO (Maybe (C.Chat, [C.ChatMessage], C.StreamingState))
+    setCurrent st' chatId' = do
+      modifyMVar' st' $ \st -> do
+        let st2 = st { currentId = chatId' }
+        r <-
+          case chatId' of
+            Nothing -> pure Nothing
+            Just chatId -> getChat' st chatId
+        pure (st2, r)
 
 
     getCurrent :: MVar' WrapperState -> IO (Maybe (C.ChatId, C.Chat, C.StreamingState, [C.ChatMessage]))

@@ -132,9 +132,9 @@ data Store = Store
 data StoreWrapper = StoreWrapper
   { swListChats :: !(IO [Chat])
 
-  , swNewChat :: !(Text -> Text -> IO Chat)
-  , swGetChat :: !(ChatId -> IO (Maybe (Chat, [ChatMessage])))
-  , swSetCurrent :: !(ChatId -> IO ())
+  , swNewChat :: !(Text -> Text -> StreamingState -> IO Chat)
+  , swGetChat :: !(ChatId -> IO (Maybe (Chat, [ChatMessage], StreamingState)))
+  , swSetCurrent :: !(Maybe ChatId -> IO (Maybe (Chat, [ChatMessage], StreamingState)))
   , swGetCurrent :: !(IO (Maybe (ChatId, Chat, StreamingState, [ChatMessage])))
   , swAddMessage :: !(ChatId -> O.Role -> StreamingState -> Text -> Text -> IO (Either Text ChatMessage))
   , swStreamDone :: !(ChatId -> IO ())

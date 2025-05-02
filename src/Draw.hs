@@ -223,8 +223,8 @@ drawChatInner st =
         borderWithLabel' inputEditSelected "Input"
         ( case (snd <$> st._stChatCurrent) of
             Nothing -> B.fill ' '
-            Just C.SsStreaming -> (BE.renderEditor (B.txt . Txt.unlines) inputEditSelected st._stChatInput)
-            Just C.SsNotStreaming -> spinner2 st
+            Just C.SsNotStreaming -> (BE.renderEditor (B.txt . Txt.unlines) inputEditSelected st._stChatInput)
+            Just C.SsStreaming -> spinner2 st <+> B.fill ' '
         )
       )
 
