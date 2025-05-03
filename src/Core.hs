@@ -36,6 +36,8 @@ data Name
   | NPopChatEditModels
   | NPopChatEditOk
   | NPopChatEditCancel
+  --
+  | NLogList
   deriving stock (Show, Eq, Ord)
 
 
@@ -52,6 +54,8 @@ data UiEvent
   | UeGotChatsList ![Chat] !(Maybe ChatId)
   | UeChatUpdated !ChatId
   | UeChatStreamResponseDone !ChatId
+  --
+  | UeLogUpdated [LogEntry]
   deriving stock (Show, Eq)
 
 
@@ -63,6 +67,8 @@ data Command
   --
   | CmdRefreshChatsList (Maybe ChatId)
   | CmdChatSend !ChatId !ChatMessage
+  --
+  | CmdUpdateLog
   deriving stock (Show, Eq)
 
 newtype ChatId = ChatId Text
@@ -83,6 +89,7 @@ data UiState = UiState
   , _stNow :: !DT.UTCTime
   , _stDebug :: !Text
   , _stStore :: !StoreWrapper
+  , _stLog :: !Logger
   , _stAttrMap :: !B.AttrMap
 
   , _stFooterWidget :: !(Maybe (Name, UiState -> B.Widget Name))
@@ -107,6 +114,10 @@ data UiState = UiState
   , _stChatsList :: !(BL.List Name Chat)
 
   , _stColoursList :: !(BL.List Name Text)
+
+  , _stFocusLog :: !(BF.FocusRing Name)
+  , _stLogList :: !(BL.List Name LogEntry)
+  , _stLogFilterIndex :: !Int
 
   , _stPopup :: !(Maybe Popup)
 
@@ -151,6 +162,8 @@ data StoreWrapper = StoreWrapper
   , swAddMessage :: !(ChatId -> O.Role -> StreamingState -> Text -> Text -> IO (Either Text ChatMessage))
   , swStreamDone :: !(ChatId -> IO ())
   , swAddStreamedChatContent :: !(ChatId -> MessageId -> O.Role -> Text -> IO (Either Text ()))
+
+  , swLog :: !Logger
   }
 
 
@@ -166,6 +179,7 @@ data Tab
   | TabPs
   | TabChat
   | TabColours
+  | TabLog
   deriving stock (Show, Eq, Ord, Enum, Bounded)
 
 
@@ -182,6 +196,30 @@ data StreamingState
   = SsStreaming
   | SsNotStreaming
   deriving stock (Show, Eq, Ord)
+
+
+data LogLevel
+  = LlDebug
+  | LlInfo
+  | LlWarn
+  | LlError
+  deriving stock (Show, Eq, Ord, Bounded, Enum)
+
+
+data Logger = Logger
+  { lgWarn :: !(Text -> IO ())
+  , lgError :: !(Text -> IO ())
+  , lgInfo :: !(Text -> IO ())
+  , lgDebug :: !(Text -> IO ())
+  , lgOnLog :: !(IO ())
+  , lgReadLast :: !(Int -> IO [LogEntry])
+  }
+
+data LogEntry = LogEntry
+  { leLevel :: !LogLevel
+  , leTime :: !DT.UTCTime
+  , leText :: !Text
+  } deriving stock (Show, Eq)
 
 
 instance Ae.FromJSON AppConfig where

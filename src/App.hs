@@ -34,8 +34,8 @@ runTui :: IO ()
 runTui = do
   dbPath' <- Cfg.getStateDir
   let dbPath = dbPath' </> "bollama.db"
-  --store <- Sr.newStoreWrapper Sr.newInMemStore
-  store <- Sr.newStoreWrapper $ Sr.newSqliteStore dbPath
+  store <- Sr.newStoreWrapper $ Sr.newSqliteStore dbPath pass
+  store.swLog.lgDebug "Starting TUI"
 
   -- Create a temporary chat
   -- TODO config default model
@@ -57,6 +57,7 @@ runTui = do
     , B.appStartEvent = liftIO $ do
        BCh.writeBChan commandChan C.CmdRefreshModelList
        BCh.writeBChan commandChan $ C.CmdRefreshChatsList Nothing
+       BCh.writeBChan commandChan C.CmdUpdateLog
     }
 
   let buildVty = Vty.mkVty Vty.defaultConfig
@@ -74,6 +75,7 @@ runTui = do
        , _stNow = now
        , _stDebug = ""
        , _stStore = store
+       , _stLog = store.swLog
        , _stAttrMap = attrMap
        , _stFooterWidget = Nothing
 
@@ -97,6 +99,10 @@ runTui = do
        , _stChatsList = BL.list C.NChatsList mempty 1
 
        , _stColoursList = BL.list C.NColoursList (V.fromList . sort $ fst <$> U.knownColours) 1
+
+       , _stFocusLog = BF.focusRing [C.NLogList]
+       , _stLogList = BL.list C.NLogList mempty 1
+       , _stLogFilterIndex = 1
 
        , _stPopup = Nothing
 

@@ -120,6 +120,16 @@ newUuidText = do
   pure $ show uuid
 
 
+logLevelFilters :: [[C.LogLevel]]
+logLevelFilters =
+  [ [C.LlError]
+  , [C.LlWarn, C.LlError]
+  , [C.LlInfo, C.LlWarn, C.LlError]
+  , [C.LlDebug, C.LlInfo, C.LlWarn, C.LlError]
+  ]
+
+
+
 
 attrMapFromFile :: FilePath -> IO ([Text], BA.AttrMap)
 attrMapFromFile file = do
@@ -487,7 +497,3 @@ knownColours =
     , ("yellow4",             Vty.rgbColor @Int 0x87 0x87 0x00)
     , ("yellow6",             Vty.rgbColor @Int 0x87 0xAF 0x00)
     ]
-
-
-logIt :: (Show a) => a -> IO ()
-logIt v = Txt.appendFile "/home/andre/temp/a.txt" (show v)

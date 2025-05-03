@@ -101,6 +101,7 @@ drawTabs st =
         C.TabPs -> drawPsInner st
         C.TabChat -> drawChatInner st
         C.TabColours -> drawColours st
+        C.TabLog -> drawLogs st
 ---------------------------------------------------------------------------------------------------
 
 
@@ -282,6 +283,34 @@ drawColours st =
 
 
 ---------------------------------------------------------------------------------------------------
+-- Log
+---------------------------------------------------------------------------------------------------
+drawLogs :: C.UiState -> B.Widget C.Name
+drawLogs st =
+  ( B.vLimit 1 $ B.hBox
+      [ col 22 "Date" "colHeader"
+      , col 12 "Level" "colHeader"
+      , col 9 "Message" "colHeader"
+      ]
+  )
+  <=>
+  BL.renderList go True st._stLogList
+
+  where
+    go :: Bool -> C.LogEntry -> B.Widget C.Name
+    go _ l =
+      let dt = Txt.pack $ DT.formatTime DT.defaultTimeLocale "%Y-%m-%d %H:%M:%S" l.leTime
+      in
+      B.hBox
+        [ col 22 dt ""
+        , col 12 (show l.leLevel) ""
+        , B.txtWrap l.leText
+        ]
+---------------------------------------------------------------------------------------------------
+
+
+
+---------------------------------------------------------------------------------------------------
 -- Shared
 ---------------------------------------------------------------------------------------------------
 borderWithLabel' :: Bool -> Text -> B.Widget n -> B.Widget n
@@ -333,6 +362,7 @@ tabName C.TabModels = "F2: Models"
 tabName C.TabPs = "F3: Running"
 tabName C.TabChat = "F4: Chat"
 tabName C.TabColours = "F11: Colours"
+tabName C.TabLog = "F12: Log"
 
 
 

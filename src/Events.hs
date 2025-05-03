@@ -70,6 +70,7 @@ handleEventNoPopup commandChan ev ve = do
             C.TabPs -> BF.focusGetCurrent st._stFocusPs
             C.TabChat -> BF.focusGetCurrent st._stFocusChat
             C.TabColours -> Nothing
+            C.TabLog -> BF.focusGetCurrent st._stFocusLog
 
 
       case (st._stTab, footerWidgetName, focused, k, ms) of
@@ -113,6 +114,9 @@ handleEventNoPopup commandChan ev ve = do
 
         (_, _, _, Vty.KFun 11, []) -> do
             C.stTab .= C.TabColours
+
+        (_, _, _, Vty.KFun 12, []) -> do
+            C.stTab .= C.TabLog
         ---------------------------------------------------------------------------------------------------
 
 
@@ -123,6 +127,7 @@ handleEventNoPopup commandChan ev ve = do
         (C.TabPs, _, _, _, _) -> handleTabPs commandChan ev ve focused k ms
         (C.TabChat, _, _, _, _) -> handleTabChat commandChan st._stStore ev ve focused k ms
         (C.TabColours, _, _, _, _) -> handleTabColours commandChan ev ve focused k ms
+        (C.TabLog, _, _, _, _) -> handleTabLog commandChan ev ve focused k ms
         ---------------------------------------------------------------------------------------------------
 
         _ -> pass
@@ -154,6 +159,10 @@ handleAppEvent commandChan uev = do
         Nothing -> C.stChatsList %= BL.listMoveTo 0
 
       handleChatSelectionUpdate
+
+    C.UeLogUpdated ls -> do
+      C.stLogList %= BL.listReplace (V.fromList ls) Nothing
+      C.stLogList %= BL.listMoveToEnd
 
 
 handleAppEventTick :: BCh.BChan C.Command -> Int -> B.EventM C.Name C.UiState ()
@@ -528,6 +537,34 @@ handleTabColours _commandChan _ev ve _focused _k _ms = do
 
 
 ---------------------------------------------------------------------------------------------------
+-- Log Tab Events
+---------------------------------------------------------------------------------------------------
+handleTabLog
+  :: BCh.BChan C.Command
+  -> B.BrickEvent C.Name C.UiEvent
+  -> Vty.Event
+  -> Maybe C.Name
+  -> Vty.Key
+  -> [Vty.Modifier]
+  -> B.EventM C.Name C.UiState ()
+handleTabLog _commandChan _ev ve _focused k ms = do
+  case (k, ms) of
+    (Vty.KChar '+', []) -> do
+      --let fs = length U.logLevelFilters
+      pass
+
+    (Vty.KChar '-', []) -> do
+      --let fs = length U.logLevelFilters
+      pass
+
+    _ -> do
+      C.stDebug .= show (k, ms)
+      B.zoom C.stLogList $ BL.handleListEventVi BL.handleListEvent ve
+---------------------------------------------------------------------------------------------------
+
+
+
+---------------------------------------------------------------------------------------------------
 -- Utils
 ---------------------------------------------------------------------------------------------------
 filterModels :: B.EventM C.Name C.UiState [C.ModelItem]
@@ -634,7 +671,10 @@ runCommands commandChan eventChan store = forever $ do
       BCh.writeBChan eventChan $ C.UeGotChatsList chats overrideSelect
 
 
-      pass
+    C.CmdUpdateLog -> do
+      ls <- store.swLog.lgReadLast 1000
+      BCh.writeBChan eventChan $ C.UeLogUpdated ls
+
 
 
 runTick :: BCh.BChan C.UiEvent -> IO ()

@@ -39,6 +39,13 @@ getStateDir = do
   pure p
 
 
+getDataDir :: IO FilePath
+getDataDir = do
+  p <- Dir.getXdgDirectory Dir.XdgData "bollama"
+  Dir.createDirectoryIfMissing True p
+  pure p
+
+
 emptyAppConfig :: C.AppConfig
 emptyAppConfig = C.AppConfig
   { acModelTag = mempty
