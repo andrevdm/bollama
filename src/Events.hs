@@ -582,7 +582,7 @@ runCommands commandChan eventChan store = forever $ do
 
     C.CmdChatSend chatId msg -> do
       store.swGetChat chatId >>= \case
-        Just (_chat, hist1, _streamState) -> do
+        Just (chat, hist1, _streamState) -> do
           debouncedUpdateUi <- Deb.mkDebounce Deb.defaultDebounceSettings
             { Deb.debounceFreq = 500_000  -- 500ms
             , Deb.debounceEdge = Deb.leadingEdge
@@ -597,8 +597,7 @@ runCommands commandChan eventChan store = forever $ do
             msgAndCtx = NE.fromList $ (reverse hist2) <> [oMsg]
 
             ops = O.ChatOps
-              --{ chatModelName = "qwen3:0.6b"
-              { chatModelName = "gemma3:1b"
+              { chatModelName = chat.chatModel
               , messages = msgAndCtx
               , tools = Nothing
               , format = Nothing

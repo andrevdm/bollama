@@ -20,6 +20,7 @@ import Data.Time qualified as DT
 import Data.Vector qualified as V
 import Graphics.Vty qualified as Vty
 import Graphics.Vty.CrossPlatform qualified as Vty
+import System.FilePath ((</>))
 
 import Core qualified as C
 import Config qualified as Cfg
@@ -31,12 +32,14 @@ import Utils qualified as U
 
 runTui :: IO ()
 runTui = do
-  store <- Sr.newStoreWrapper Sr.newInMemStore
+  dbPath' <- Cfg.getStateDir
+  let dbPath = dbPath' </> "bollama.db"
+  --store <- Sr.newStoreWrapper Sr.newInMemStore
+  store <- Sr.newStoreWrapper $ Sr.newSqliteStore dbPath
 
   -- Create a temporary chat
   -- TODO config default model
   _ <- store.swNewChat "#Temp" "" C.SsNotStreaming
-  _ <- store.swNewChat "#Temp 2" "" C.SsNotStreaming
 
   eventChan <- BCh.newBChan 1000
   commandChan <- BCh.newBChan @C.Command 1000

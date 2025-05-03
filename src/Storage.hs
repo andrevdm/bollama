@@ -9,6 +9,7 @@
 module Storage
   ( newInMemStore
   , newStoreWrapper
+  , newSqliteStore
   ) where
 
 import           Verset
@@ -16,10 +17,13 @@ import           Verset
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TVar qualified as TV
 import Control.Concurrent.MVar.Strict (MVar', newMVar', modifyMVar', modifyMVar'_, withMVar')
+import Control.Exception.Safe (finally)
+import Database.SQLite.Simple qualified as Sq
 import Data.Time qualified as DT
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as Txt
 import Ollama qualified as O
+import Text.RawString.QQ (r)
 
 import Core qualified as C
 import Utils qualified as U
@@ -166,11 +170,11 @@ newStoreWrapper mkStore = do
     setCurrent st' chatId' = do
       modifyMVar' st' $ \st -> do
         let st2 = st { currentId = chatId' }
-        r <-
+        res <-
           case chatId' of
             Nothing -> pure Nothing
             Just chatId -> getChat' st chatId
-        pure (st2, r)
+        pure (st2, res)
 
 
     getCurrent :: MVar' WrapperState -> IO (Maybe (C.ChatId, C.Chat, C.StreamingState, [C.ChatMessage]))
@@ -287,3 +291,135 @@ newStoreWrapper mkStore = do
 
 
 
+newSqliteStore :: FilePath -> IO C.Store
+newSqliteStore dbPath = do
+  _ <- initDb
+
+  pure $ C.Store
+    { srListChats = do
+        withConn $ \conn -> do
+          chats :: [(Text, Text, Text, DT.UTCTime, DT.UTCTime)] <-
+            Sq.query_ conn "SELECT id, name, model, createdAt, updatedAt FROM chat order by name"
+
+          pure $ chats <&> \(chatId, chatName, chatModel, createdAt, updatedAt) ->
+            C.Chat
+              { C.chatId = C.ChatId chatId
+              , C.chatName = chatName
+              , C.chatCreatedAt = createdAt
+              , C.chatUpdatedAt = updatedAt
+              , C.chatModel = chatModel
+              }
+
+
+    , srLoadChat = \(C.ChatId chatId) -> do
+        withConn $ \conn -> do
+          chat1 :: [(Text, Text, Text, DT.UTCTime, DT.UTCTime)] <-
+            Sq.query conn "SELECT id, name, model, createdAt, updatedAt FROM chat WHERE id = ?" (Sq.Only chatId)
+
+          case chat1 of
+            [] -> pure Nothing
+            ((id, name, model, createdAt, updatedAt): _) -> do
+              let chat =
+                    C.Chat
+                      { C.chatId = C.ChatId id
+                      , C.chatName = name
+                      , C.chatCreatedAt = createdAt
+                      , C.chatUpdatedAt = updatedAt
+                      , C.chatModel = model
+                      }
+
+              msgs1 :: [(Text, Text, Text, DT.UTCTime, Text)] <-
+                Sq.query conn "SELECT id, role, model, createdAt, msg FROM chatMessage WHERE chatId = ? order by createdAt" (Sq.Only chatId)
+
+              let msgs =
+                    msgs1 <&> \(msgId, role, msgModel, msgCreatedAt, msg) ->
+                      C.ChatMessage
+                        { C.msgChatId = C.ChatId chatId
+                        , C.msgId = C.MessageId msgId
+                        , C.msgModel = msgModel
+                        , C.msgCreatedAt = msgCreatedAt
+                        , C.msgText = msg
+                        , C.msgRole =
+                            case Txt.toLower role of
+                              "system" -> O.System
+                              "assistant" -> O.Assistant
+                              "tool" -> O.Tool
+                              _ -> O.User
+                        }
+
+              pure $ Just (chat, msgs)
+
+
+    , srSaveChat = \chat -> do
+        withConn_ $ \conn -> do
+          Sq.execute conn "INSERT OR REPLACE INTO chat (id, name, model, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)"
+            ( chat.chatId & \(C.ChatId chatId) -> chatId
+            , chat.chatName
+            , chat.chatModel
+            , chat.chatCreatedAt
+            , chat.chatUpdatedAt
+            )
+
+    , srSaveChatMessage = \msg -> do
+        withConn_ $ \conn -> do
+          Sq.execute conn "INSERT OR REPLACE INTO chatMessage (id, chatId, role, model, createdAt, msg) VALUES (?, ?, ?, ?, ?, ?)"
+            ( msg.msgId & \(C.MessageId msgId) -> msgId
+            , msg.msgChatId & \(C.ChatId chatId) -> chatId
+            , show @_ @Text msg.msgRole
+            , msg.msgModel
+            , msg.msgCreatedAt
+            , msg.msgText
+            )
+    }
+
+  where
+    initDb :: IO ()
+    initDb = do
+      withConn_ $ \conn -> do
+        _ <- liftIO . Sq.execute_ conn . Sq.Query $ Txt.unlines
+          [ "pragma journal_mode = WAL;"
+          , "pragma synchronous = normal;"
+          , "pragma temp_store = memory;"
+          , "pragma mmap_size = 30000000000;"
+          , "pragma journal_size_limit = 6144000;"
+          ]
+
+        traverse (Sq.execute_ conn) createScripts
+
+
+    withConn :: (Sq.Connection -> IO a) -> IO a
+    withConn f = do
+      conn <- Sq.open dbPath
+      finally (f conn) (Sq.close conn)
+
+
+    withConn_ :: (Sq.Connection -> IO a) -> IO ()
+    withConn_ = void . withConn
+
+
+    createScripts :: [Sq.Query]
+    createScripts =
+     [ [r| -- Chats table
+           CREATE TABLE IF NOT EXISTS chat (
+             id         TEXT      PRIMARY KEY,
+             name       TEXT      NOT NULL,
+             createdAt  DATETIME  NOT NULL,
+             updatedAt  DATETIME  NOT NULL,
+             model      TEXT      NOT NULL
+           );
+       |]
+     , [r| -- Chat messages table
+           CREATE TABLE IF NOT EXISTS chatMessage (
+             id         TEXT      PRIMARY KEY,
+             chatId     TEXT      NOT NULL,
+             role       TEXT      NOT NULL,
+             model      TEXT      NOT NULL,
+             createdAt  DATETIME  NOT NULL,
+             msg        TEXT      NOT NULL,
+             FOREIGN KEY (chatId) REFERENCES chat(chatId) ON DELETE CASCADE
+           );
+       |]
+
+     , "CREATE INDEX IF NOT EXISTS idx_chat_message_chat_id ON chatMessage(chatId);"
+     , "CREATE INDEX IF NOT EXISTS idx_chat_message_created_at ON chatMessage(createdAt);"
+     ]

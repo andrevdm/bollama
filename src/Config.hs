@@ -32,6 +32,12 @@ getConfigDir = do
   pure p
 
 
+getStateDir :: IO FilePath
+getStateDir = do
+  p <- Dir.getXdgDirectory Dir.XdgState "bollama"
+  Dir.createDirectoryIfMissing True p
+  pure p
+
 
 emptyAppConfig :: C.AppConfig
 emptyAppConfig = C.AppConfig
