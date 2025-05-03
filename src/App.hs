@@ -53,7 +53,7 @@ runTui = do
     , B.appAttrMap = C._stAttrMap
     , B.appStartEvent = liftIO $ do
        BCh.writeBChan commandChan C.CmdRefreshModelList
-       BCh.writeBChan commandChan C.CmdRefreshChatsList
+       BCh.writeBChan commandChan $ C.CmdRefreshChatsList Nothing
     }
 
   let buildVty = Vty.mkVty Vty.defaultConfig
@@ -94,6 +94,13 @@ runTui = do
        , _stChatsList = BL.list C.NChatsList mempty 1
 
        , _stColoursList = BL.list C.NColoursList (V.fromList . sort $ fst <$> U.knownColours) 1
+
+       , _stPopup = Nothing
+
+       , _stPopChatEditFocus = BF.focusRing [C.NPopChatEditName, C.NPopChatEditModels, C.NPopChatEditOk, C.NPopChatEditCancel]
+       , _stPopChatEditName = BE.editorText C.NPopChatEditName (Just 1) ""
+       , _stPopChatEditModels = BL.list C.NPopChatEditModels mempty 1
+       , _stPopChatEditOnOk = (\_name _model -> pure ())
        }
 
   _finalState <- B.customMain @C.Name initialVty buildVty (Just eventChan) app initialState

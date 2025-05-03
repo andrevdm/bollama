@@ -98,21 +98,32 @@ newStoreWrapper mkStore = do
 
     evict :: MVar' WrapperState -> a -> IO a
     evict st' a = do
-      pure a
-      --modifyMVar'_ st' $ \st -> do
-      --  let vs2 = Map.filterWithKey
-      --            (\k (streamingSts, c, _) ->
-      --              streamingSts == C.SsStreaming
-      --              || Just k == st.currentId
-      --              || Txt.isInfixOf "#" c.chatName
-      --            ) st.cache
+      modifyMVar'_ st' $ \st -> do
+        let vs2 = Map.filterWithKey
+                  (\k (streamingSts, c, _) ->
+                    streamingSts == C.SsStreaming
+                    || Just k == st.currentId
+                    || Txt.isInfixOf "#" c.chatName
+                  ) st.cache
 
-      --  pure $ st { cache = vs2 }
-      --pure a
+        pure $ st { cache = vs2 }
+      pure a
 
 
     newChat :: MVar' WrapperState -> Text -> Text -> C.StreamingState -> IO C.Chat
-    newChat st' chatName chatModel streaming = do
+    newChat st' chatName'' chatModel streaming = do
+      chats <- listChats st'
+
+      -- Always have a unique chat name
+      dt' <- DT.getCurrentTime
+      let
+        dt = Txt.pack $ DT.formatTime DT.defaultTimeLocale "%Y-%m-%d %H:%M:%S" dt'
+        chatName' = if (Txt.null . Txt.strip) chatName'' then dt else chatName''
+        chatName =
+           case find (\c -> c.chatName == chatName') chats of
+           Just _ -> chatName' <> "." <> dt
+           Nothing -> chatName'
+
       chatId <- C.ChatId <$> U.newUuidText
       now <- DT.getCurrentTime
 

@@ -22,3 +22,12 @@ tabSelected                , black                 ,  cornflowerBlue
 tabUnselected              , black                 ,  grey
 time                       , yellow                ,  -
 version                    , yellow                ,  grey
+
+popup                      , black                 ,  paleTurquoise4
+popupHeader                , blue3                 ,  paleTurquoise4
+popupButtonOk              , green                 ,  black
+popupButtonOkFocused       , black                 ,  green
+popupButtonCancel          , red                   ,  black
+popupButtonCancelFocused   , black                 ,  red
+popupTableHeader           , deepPink4             ,  paleTurquoise4
+

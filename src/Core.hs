@@ -31,6 +31,11 @@ data Name
   | NChatsList
   --
   | NColoursList
+  --
+  | NPopChatEditName
+  | NPopChatEditModels
+  | NPopChatEditOk
+  | NPopChatEditCancel
   deriving stock (Show, Eq, Ord)
 
 
@@ -44,7 +49,7 @@ data UiEvent
   --
   | UePsList ![O.RunningModel]
   --
-  | UeGotChatsList ![Chat]
+  | UeGotChatsList ![Chat] !(Maybe ChatId)
   | UeChatUpdated !ChatId
   | UeChatStreamResponseDone !ChatId
   deriving stock (Show, Eq)
@@ -56,7 +61,7 @@ data Command
   --
   | CmdRefreshPs
   --
-  | CmdRefreshChatsList
+  | CmdRefreshChatsList (Maybe ChatId)
   | CmdChatSend !ChatId !ChatMessage
   deriving stock (Show, Eq)
 
@@ -102,6 +107,13 @@ data UiState = UiState
   , _stChatsList :: !(BL.List Name Chat)
 
   , _stColoursList :: !(BL.List Name Text)
+
+  , _stPopup :: !(Maybe Popup)
+
+  , _stPopChatEditFocus :: !(BF.FocusRing Name)
+  , _stPopChatEditName :: !(BE.Editor Text Name)
+  , _stPopChatEditModels :: !(BL.List Name ModelItem)
+  , _stPopChatEditOnOk :: !(Text -> Text -> IO ())
   }
 
 data Chat = Chat
@@ -155,6 +167,12 @@ data Tab
   | TabChat
   | TabColours
   deriving stock (Show, Eq, Ord, Enum, Bounded)
+
+
+data Popup
+  = PopupChatEdit
+  deriving stock (Show, Eq, Ord, Bounded, Enum)
+
 
 data AppConfig = AppConfig
   { acModelTag :: !(Map Text Text)

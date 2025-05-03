@@ -47,8 +47,20 @@ handleEvent :: BCh.BChan C.Command -> B.BrickEvent C.Name C.UiEvent -> B.EventM 
 handleEvent commandChan ev = do
   case ev of
     B.AppEvent ae -> handleAppEvent commandChan ae
+    B.VtyEvent ve -> do
+      use C.stPopup >>= \case
+        Nothing -> handleEventNoPopup commandChan ev ve
+        Just C.PopupChatEdit -> handleEventPopupChatEdit commandChan ev ve
 
-    B.VtyEvent ve@(Vty.EvKey k ms) -> do
+    _ -> pass
+
+
+
+
+handleEventNoPopup :: BCh.BChan C.Command -> B.BrickEvent C.Name C.UiEvent -> Vty.Event -> B.EventM C.Name C.UiState ()
+handleEventNoPopup commandChan ev ve = do
+  case ve of
+    Vty.EvKey k ms -> do
       st <- B.get
       let
         footerWidgetName = fst <$> st._stFooterWidget
@@ -133,9 +145,14 @@ handleAppEvent commandChan uev = do
     C.UeGotTime t -> handleAppEventGotTime commandChan t
     C.UeChatUpdated chatId -> handleChatUpdated chatId
     C.UeChatStreamResponseDone chatId -> handleChatStreamResponseDone commandChan chatId
-    C.UeGotChatsList chats -> do
-      C.stDebug .= "Got chats list: " <> show (length chats)
-      C.stChatsList %= BL.listMoveTo 0 . BL.listReplace (V.fromList chats) Nothing
+
+    C.UeGotChatsList chats overrideSelect' -> do
+      C.stChatsList %= BL.listReplace (V.fromList chats) Nothing
+
+      case overrideSelect' of
+        Just chatId -> C.stChatsList %= BL.listFindBy (\i -> i.chatId == chatId)
+        Nothing -> C.stChatsList %= BL.listMoveTo 0
+
       handleChatSelectionUpdate
 
 
@@ -162,6 +179,7 @@ handleAppEventGotModelList commandChan ms1 = do
   C.stModels .= ms
   filteredModels <- filterModels
   C.stModelsList %= BL.listReplace (V.fromList filteredModels) Nothing
+  C.stPopChatEditModels %= BL.listMoveTo 0 . BL.listReplace (V.fromList ms) Nothing
   C.stModelListLoading .= False
 
   C.stModelShowLoading .= True
@@ -206,6 +224,7 @@ handleAppEventModelShowDone _commandChan = do
   filteredModels <- filterModels
   C.stModelsList %= BL.listReplace (V.fromList filteredModels) ix
   C.stModelShowLoading .= False
+  C.stPopChatEditModels %= BL.listMoveTo 0 . BL.listReplace (V.fromList vs2) Nothing
 
 
 handleAppEventGotTime :: BCh.BChan C.Command -> DT.UTCTime -> B.EventM C.Name C.UiState ()
@@ -400,6 +419,12 @@ handleTabChat commandChan store ev ve focused k ms =
 
     (_, Vty.KBackTab, []) -> do
       C.stFocusChat %= BF.focusPrev
+
+    (_, Vty.KChar 'n', [Vty.MCtrl]) -> do
+      C.stPopup .= Just C.PopupChatEdit
+      C.stPopChatEditOnOk .= \name model -> do
+        chat <- store.swNewChat name model C.SsNotStreaming
+        BCh.writeBChan commandChan $ C.CmdRefreshChatsList (Just chat.chatId)
 
 
     (Just C.NChatInputEdit, Vty.KChar 'r', [Vty.MCtrl]) -> do
@@ -605,9 +630,9 @@ runCommands commandChan eventChan store = forever $ do
           --TODO send message for error
           pass
 
-    C.CmdRefreshChatsList -> do
+    C.CmdRefreshChatsList overrideSelect -> do
       chats <- store.swListChats
-      BCh.writeBChan eventChan $ C.UeGotChatsList chats
+      BCh.writeBChan eventChan $ C.UeGotChatsList chats overrideSelect
 
 
       pass
@@ -630,3 +655,55 @@ runTick eventChan = do
 
     threadDelay 100_000
 ----------------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+
+----------------------------------------------------------------------------------------------------------------------
+-- Edit Chat Popup
+----------------------------------------------------------------------------------------------------------------------
+handleEventPopupChatEdit :: BCh.BChan C.Command -> B.BrickEvent C.Name C.UiEvent -> Vty.Event -> B.EventM C.Name C.UiState ()
+handleEventPopupChatEdit _commandChan ev ve = do
+  st <- B.get
+  let focused = BF.focusGetCurrent st._stPopChatEditFocus
+
+  case ve of
+    Vty.EvKey k ms -> do
+      case (focused, k, ms) of
+        (_, Vty.KChar 'q', [Vty.MCtrl]) -> do
+          C.stPopup .= Nothing
+
+        (_, Vty.KEsc, []) -> do
+          C.stPopup .= Nothing
+
+        (_, Vty.KChar '\t', []) -> do
+          C.stPopChatEditFocus %= BF.focusNext
+
+        (_, Vty.KBackTab, []) -> do
+          C.stPopChatEditFocus %= BF.focusPrev
+
+        (Just C.NPopChatEditName, _, _) -> do
+          B.zoom C.stPopChatEditName $ BE.handleEditorEvent ev
+
+        (Just C.NPopChatEditModels, _, _) -> do
+          B.zoom C.stPopChatEditModels $ BL.handleListEventVi BL.handleListEvent ve
+
+        (Just C.NPopChatEditOk, Vty.KEnter, []) -> do
+          chatName <- use (C.stPopChatEditName . BE.editContentsL . to TxtZ.getText . to Txt.unlines . to Txt.strip)
+          chatModel <- use (C.stPopChatEditModels . BL.listSelectedElementL . to (.miName))
+          C.stPopup .= Nothing
+          C.stPopChatEditName . BE.editContentsL %= TxtZ.clearZipper
+          C.stPopChatEditFocus %= BF.focusSetCurrent C.NPopChatEditName
+          liftIO $ st._stPopChatEditOnOk chatName chatModel
+
+        (Just C.NPopChatEditCancel, Vty.KEnter, []) -> do
+          C.stPopChatEditName . BE.editContentsL %= TxtZ.clearZipper
+          C.stPopChatEditFocus %= BF.focusSetCurrent C.NPopChatEditName
+          C.stPopup .= Nothing
+
+        _ -> pass
+
+      pass
+    _ -> pass

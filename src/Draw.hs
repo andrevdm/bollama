@@ -20,6 +20,8 @@ import Brick qualified as B
 import Brick.Focus qualified as BF
 import Brick.Widgets.Border qualified as BB
 import Brick.Widgets.Border.Style qualified as BBS
+import Brick.Widgets.Center qualified as BC
+import Brick.Widgets.Core qualified as BW
 import Brick.Widgets.Edit qualified as BE
 import Brick.Widgets.List qualified as BL
 import Control.Lens ((^.))
@@ -40,7 +42,13 @@ import Utils qualified as U
 ---------------------------------------------------------------------------------------------------
 drawUI :: C.UiState -> [B.Widget C.Name]
 drawUI st =
-  [contentBlock' <=> footer st]
+  [ BC.centerLayer $
+      case st._stPopup of
+        Nothing -> BW.emptyWidget
+        Just C.PopupChatEdit -> drawPopupChatEdit st
+
+  , contentBlock' <=> footer st
+  ]
 
   where
     contentBlock' = drawTabs st
@@ -327,6 +335,82 @@ tabName C.TabChat = "F4: Chat"
 tabName C.TabColours = "F11: Colours"
 
 
+
+
+---------------------------------------------------------------------------------------------------
+-- Popup Chat Edit
+---------------------------------------------------------------------------------------------------
+drawPopupChatEdit :: C.UiState -> B.Widget C.Name
+drawPopupChatEdit st =
+  B.vLimit 25 $
+  B.hLimit 180 $
+  borderWithLabel' True "Chat" $
+  B.withAttr (B.attrName "popup") $
+  B.padAll 1 $
+  ( B.vBox
+    [ B.vLimit 1 $ B.hBox
+        [ col 7 "Name:" "popupHeader"
+        , BE.renderEditor (B.txt . Txt.unlines) (BF.focusGetCurrent st._stPopChatEditFocus == Just C.NPopChatEditName) st._stPopChatEditName
+        ]
+    , B.txt " "
+    , B.vLimit 1 $ B.hBox
+        [ col 7 "Model:" "popupHeader"
+        , B.hBox [col 70 "Name" "popupTableHeader", col 11 "Params" "popupTableHeader", col 40 "Capabilities" "popupTableHeader", col 50 "User" "popupTableHeader"]
+        ]
+    , B.vLimit 12 $
+      ( B.padLeft (B.Pad 7) $
+        B.withAttr (B.attrName "listAttr") $
+        BL.renderList renderModel (BF.focusGetCurrent st._stPopChatEditFocus == Just C.NPopChatEditModels) st._stPopChatEditModels
+      )
+    ]
+    <=> B.fill ' '
+    <=>
+    ( B.padTop (B.Pad 2) . BC.hCenter $
+      let
+        (attrOk, attrBorderOk) =
+          if BF.focusGetCurrent st._stPopChatEditFocus == Just C.NPopChatEditOk
+          then (B.attrName "popupButtonOkFocused", BBS.unicodeBold)
+          else (B.attrName "popupButtonOk", BBS.unicode)
+
+        (attrCancel, attrBorderCancel) =
+          if BF.focusGetCurrent st._stPopChatEditFocus == Just C.NPopChatEditCancel
+          then (B.attrName "popupButtonCancelFocused", BBS.unicodeBold)
+          else (B.attrName "popupButtonCancel", BBS.unicode)
+      in
+      (     B.withBorderStyle attrBorderOk (BB.border (B.withAttr attrOk . B.vLimit 1 . B.hLimit 8 . BC.hCenter $ B.txt "Ok"))
+        <+> B.txt " "
+        <+> B.withBorderStyle attrBorderCancel (BB.border (B.withAttr attrCancel . B.vLimit 1 . B.hLimit 8 . BC.hCenter $ B.txt "Cancel"))
+      )
+    )
+  )
+
+  where
+    renderModel :: Bool -> C.ModelItem -> B.Widget C.Name
+    renderModel selected item =
+      let
+        attrName =
+          if selected
+          then "listSelectedAttr"
+          else "listAttr"
+        cs =
+          case (.capabilities) <$> item.miShow of
+            Just (Just cs') -> Txt.intercalate ", " cs'
+            _ -> ""
+        usr = fromMaybe "" $ Map.lookup item.miName st._stAppConfig.acModelTag
+      in
+      B.withAttr (B.attrName attrName) $
+      B.hBox
+        [ col 70 item.miName ""
+        , col 11 (maybe (spinnerText st) (.details.parameterSize) item.miShow) ""
+        , col 40 cs ""
+        , col 50 usr ""
+        ]
+---------------------------------------------------------------------------------------------------
+
+
+
+
+
 spinnerFrames :: [Text]
 spinnerFrames = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]
 --spinnerFrames = ["-", "\\", "|", "/"]
@@ -336,22 +420,31 @@ spinnerFrames2 :: [Text]
 --spinnerFrames2 = ["█▒▒▒▒▒▒▒▒▒", "███▒▒▒▒▒▒▒", "█████▒▒▒▒▒", "███████▒▒▒", "██████████"]
 spinnerFrames2 =
   let x =
-       [ "🖋️               "
-       , ".🖋️              "
-       , "..🖋️             "
-       , "...🖋️            "
-       , "....🖋️           "
-       , ".....🖋️          "
-       , "......🖋️         "
-       , ".......🖋️        "
-       , "........🖋️       "
-       , ".........🖋️      "
-       , "..........🖋️     "
-       , "...........🖋️    "
-       , "............🖋️   "
-       , ".............🖋️  "
-       , "..............🖋️ "
+       [ "🖋️"
+       , ".🖋️"
+       , "..🖋️"
+       , "...🖋️"
+       , "....🖋️"
+       , ".....🖋️"
+       , "......🖋️"
+       , ".......🖋️"
+       , "........🖋️"
+       , ".........🖋️"
+       , "..........🖋️"
+       , "...........🖋️"
+       , "............🖋️"
+       , ".............🖋️"
+       , "..............🖋️"
        , "...............🖋️"
+       , "................🖋️"
+       , ".................🖋️"
+       , "..................🖋️"
+       , "...................🖋️"
+       , "....................🖋️"
+       , ".....................🖋️"
+       , "......................🖋️"
+       , ".......................🖋️"
+       , "........................🖋️"
        ]
   in
   x
