@@ -136,11 +136,16 @@ logLevelName C.LlError = "ERROR"
 logLevelName C.LlCritical = "CRITICAL"
 
 
-
 attrMapFromFile :: FilePath -> IO ([Text], BA.AttrMap)
 attrMapFromFile file = do
-  ls1 <- Txt.lines <$> Txt.readFile file
-  let ls2 = Txt.strip <$> ls1
+  txt <- Txt.readFile file
+  attrMapFromText txt
+
+
+attrMapFromText :: Text -> IO ([Text], BA.AttrMap)
+attrMapFromText txt = do
+  let ls1 = Txt.lines txt
+      ls2 = Txt.strip <$> ls1
       ls3 = filter (not . Txt.isInfixOf "--") ls2
       ls4 = filter (not . Txt.isInfixOf "//") ls3
       ls = filter (not . Txt.null) ls4

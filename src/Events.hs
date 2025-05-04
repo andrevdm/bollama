@@ -98,7 +98,7 @@ handleEventNoPopup commandChan ev ve = do
         (_, _, Vty.KChar 'q', [Vty.MCtrl]) -> B.halt
 
         (_, _, Vty.KChar 'u', [Vty.MCtrl]) -> do
-          (_es, m) <- liftIO $ U.attrMapFromFile "defaultAttrs.csv"
+          (_es, m) <- liftIO $ Cfg.loadTheme
           C.stAttrMap .= m
         ---------------------------------------------------------------------------------------------------
 

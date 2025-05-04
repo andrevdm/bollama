@@ -10,6 +10,7 @@ module Config where
 
 import           Verset
 
+import Brick.AttrMap qualified as BA
 import Data.Aeson qualified as Ae
 import Data.Aeson.Encode.Pretty qualified as Ae
 import Data.ByteString.Lazy as BSL
@@ -18,9 +19,10 @@ import Data.Version qualified as Ver
 import Paths_bollama qualified as Paths
 import System.Directory qualified as Dir
 import System.FilePath ((</>))
+import Text.RawString.QQ (r)
 
 import Core qualified as C
-
+import Utils qualified as U
 
 
 verText :: Text
@@ -85,3 +87,54 @@ writeAppConfig cfg = do
 defaultModel :: C.AppConfig -> Text
 defaultModel cfg = fromMaybe "qwen3:0.6b" $ cfg.acDefaultModel
   where
+
+
+loadTheme :: IO ([Text], BA.AttrMap)
+loadTheme = do
+  configDir <- getConfigDir
+  let themeFile = configDir </> "theme.csv"
+
+  Dir.doesFileExist themeFile >>= \case
+    True -> U.attrMapFromFile themeFile
+    False -> U.attrMapFromText defaultTheme
+
+
+defaultTheme :: Text
+defaultTheme = [r|
+    --default                    , red                   ,  blue
+    borderSelectedLabel        , violet                ,  -
+    chatMsgA                   , black                 ,  wheat4
+    chatMsgB                   , black                 ,  tan
+    chatMsgSelected            , black                 ,  -
+    chatDefaultMarker          , yellow                ,  -
+    colHeader                  , deepSkyBlue2          ,  -               , bold
+    editAttr                   , black                 ,  grey
+    editFocusedAttr            , black                 ,  skyBlue
+    footer                     , black                 ,  grey
+    footerMessage              , black                 ,  grey
+    footerTitle                , white                 ,  black
+    infoTitle                  , cyan                  ,  -
+    listAttr                   , white                 ,  grey7
+    listSelectedAttr           , cornflowerBlue        ,  -
+    listSelectedFocusedAttr    , black                 ,  cornflowerBlue
+    msgError                   , red                   ,  -
+    msgInfo                    , black                 ,  blue
+    spinner1                   , lightSkyBlue1         ,  -
+    spinner2                   , deepPink3             ,  -
+    tabFooter                  , black                 ,  grey
+    tabSelected                , black                 ,  cornflowerBlue
+    tabUnselected              , black                 ,  grey
+    time                       , yellow                ,  -
+    version                    , yellow                ,  grey
+
+    popup                      , black                 ,  paleTurquoise4
+    popupHeader                , blue3                 ,  paleTurquoise4
+    popupButtonOk              , green                 ,  black
+    popupButtonOkFocused       , black                 ,  green
+    popupButtonCancel          , red                   ,  black
+    popupButtonCancelFocused   , black                 ,  red
+    popupTableHeader           , deepPink4             ,  paleTurquoise4
+
+    popupError                 , black                 ,  red3
+    popupErrorText             , black                 ,  red3
+|]

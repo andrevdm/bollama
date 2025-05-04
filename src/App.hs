@@ -125,6 +125,6 @@ runTui = do
   where
     readAttrMap :: IO BA.AttrMap
     readAttrMap = do
-      (_es, m) <- U.attrMapFromFile "defaultAttrs.csv"
+      (_es, m) <- Cfg.loadTheme
       print _es
       pure m
