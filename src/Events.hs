@@ -454,12 +454,16 @@ handleTabChat commandChan store ev ve focused k ms =
 
     (_, Vty.KChar 'n', [Vty.MCtrl]) -> do
       C.stPopup .= Just C.PopupChatEdit
+      C.stPopChatEditTitle .= Just "New chat"
       C.stPopChatEditOnOk .= \name model -> do
         chat <- store.swNewChat name model C.SsNotStreaming
         BCh.writeBChan commandChan $ C.CmdRefreshChatsList (Just chat.chatId)
 
 
     (Just C.NChatInputEdit, Vty.KChar 'r', [Vty.MCtrl]) -> do
+      runInput
+
+    (Just C.NChatInputEdit, Vty.KChar 's', [Vty.MCtrl]) -> do
       runInput
 
     (Just C.NChatInputEdit, Vty.KFun 5, []) -> do
@@ -762,9 +766,11 @@ handleEventPopupChatEdit _commandChan ev ve = do
       case (focused, k, ms) of
         (_, Vty.KChar 'q', [Vty.MCtrl]) -> do
           C.stPopup .= Nothing
+          C.stPopChatEditTitle .= Nothing
 
         (_, Vty.KEsc, []) -> do
           C.stPopup .= Nothing
+          C.stPopChatEditTitle .= Nothing
 
         (_, Vty.KChar '\t', []) -> do
           C.stPopChatEditFocus %= BF.focusNext
@@ -782,6 +788,7 @@ handleEventPopupChatEdit _commandChan ev ve = do
           chatName <- use (C.stPopChatEditName . BE.editContentsL . to TxtZ.getText . to Txt.unlines . to Txt.strip)
           chatModel <- use (C.stPopChatEditModels . BL.listSelectedElementL . to (.miName))
           C.stPopup .= Nothing
+          C.stPopChatEditTitle .= Nothing
           C.stPopChatEditName . BE.editContentsL %= TxtZ.clearZipper
           C.stPopChatEditFocus %= BF.focusSetCurrent C.NPopChatEditName
           liftIO $ st._stPopChatEditOnOk chatName chatModel
@@ -790,6 +797,7 @@ handleEventPopupChatEdit _commandChan ev ve = do
           C.stPopChatEditName . BE.editContentsL %= TxtZ.clearZipper
           C.stPopChatEditFocus %= BF.focusSetCurrent C.NPopChatEditName
           C.stPopup .= Nothing
+          C.stPopChatEditTitle .= Nothing
 
         _ -> pass
 

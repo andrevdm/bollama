@@ -124,6 +124,7 @@ data UiState = UiState
   , _stPopup :: !(Maybe Popup)
 
   , _stPopChatEditFocus :: !(BF.FocusRing Name)
+  , _stPopChatEditTitle :: !(Maybe Text)
   , _stPopChatEditName :: !(BE.Editor Text Name)
   , _stPopChatEditModels :: !(BL.List Name ModelItem)
   , _stPopChatEditOnOk :: !(Text -> Text -> IO ())

@@ -108,6 +108,7 @@ runTui = do
 
        , _stPopChatEditFocus = BF.focusRing [C.NPopChatEditName, C.NPopChatEditModels, C.NDialogOk, C.NDialogCancel]
        , _stPopChatEditName = BE.editorText C.NPopChatEditName (Just 1) ""
+       , _stPopChatEditTitle = Nothing
        , _stPopChatEditModels = BL.list C.NPopChatEditModels mempty 1
        , _stPopChatEditOnOk = (\_name _model -> pure ())
        }

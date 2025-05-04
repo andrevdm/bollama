@@ -374,9 +374,9 @@ tabName C.TabLog = "F12: Log"
 ---------------------------------------------------------------------------------------------------
 drawPopupChatEdit :: C.UiState -> B.Widget C.Name
 drawPopupChatEdit st =
-  B.vLimit 25 $
+  B.vLimit 27 $
   B.hLimit 180 $
-  borderWithLabel' True "Chat" $
+  borderWithLabel' True (fromMaybe "Chat" st._stPopChatEditTitle) $
   B.withAttr (B.attrName "popup") $
   B.padAll 1 $
   ( B.vBox
@@ -389,7 +389,7 @@ drawPopupChatEdit st =
         [ col 7 "Model:" "popupHeader"
         , B.hBox [col 70 "Name" "popupTableHeader", col 11 "Params" "popupTableHeader", col 40 "Capabilities" "popupTableHeader", col 50 "User" "popupTableHeader"]
         ]
-    , B.vLimit 12 $
+    , B.vLimit 14 $
       ( B.padLeft (B.Pad 7) $
         B.withAttr (B.attrName "listAttr") $
         BL.renderList renderModel (BF.focusGetCurrent st._stPopChatEditFocus == Just C.NPopChatEditModels) st._stPopChatEditModels
