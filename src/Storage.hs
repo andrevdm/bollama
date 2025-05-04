@@ -68,7 +68,8 @@ newInMemStore = do
         pure $ Map.lookup chatId chats
 
     , srSaveChat = \chat -> do
-        atomically $ TV.modifyTVar' store (Map.insert chat.chatId (chat, []))
+        unless (Txt.isInfixOf "#" chat.chatName) $ do
+          atomically $ TV.modifyTVar' store (Map.insert chat.chatId (chat, []))
 
     , srSaveChatMessage = \msg -> do
         atomically $ TV.modifyTVar' store $ \m ->

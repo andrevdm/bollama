@@ -3,6 +3,7 @@ borderSelectedLabel        , violet                ,  -
 chatMsgA                   , black                 ,  wheat4
 chatMsgB                   , black                 ,  tan
 chatMsgSelected            , black                 ,  -
+chatDefaultMarker          , yellow                ,  -
 colHeader                  , deepSkyBlue2          ,  -               , bold
 editAttr                   , black                 ,  grey
 editFocusedAttr            , black                 ,  skyBlue

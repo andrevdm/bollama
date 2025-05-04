@@ -68,7 +68,7 @@ data Command
   --
   | CmdRefreshPs
   --
-  | CmdRefreshChatsList !(Maybe ChatId)
+  | CmdRefreshChatsList !(Maybe (Either Text ChatId))
   | CmdChatSend !ChatId !ChatMessage
   --
   | CmdUpdateLog !LogLevel !Text
@@ -204,6 +204,7 @@ data Popup
 data AppConfig = AppConfig
   { acModelTag :: !(Map Text Text)
   , acDefaultModel :: !(Maybe Text)
+  , acDefaultChatName :: !(Maybe Text)
   } deriving (Show, Eq, Generic)
 
 data StreamingState
@@ -241,7 +242,8 @@ instance Ae.FromJSON AppConfig where
   parseJSON = Ae.withObject "AppConfig" $ \o -> do
     acModelTag <- o Ae..:? "model_tag"
     acDefaultModel <- o Ae..:? "default_model"
-    pure $ AppConfig (fromMaybe mempty acModelTag) acDefaultModel
+    acDefaultChatName <- o Ae..:? "default_chat_name"
+    pure $ AppConfig (fromMaybe mempty acModelTag) acDefaultModel acDefaultChatName
 
 instance Ae.ToJSON AppConfig where
   toJSON = Ae.genericToJSON Ae.defaultOptions { Ae.fieldLabelModifier = renSnake 2 }

@@ -412,7 +412,7 @@ handleTabChat commandChan store ev ve focused k ms =
       C.stPopChatEditTitle .= Just "New chat"
       C.stPopChatEditOnOk .= \name model -> do
         chat <- liftIO $ store.swNewChat name model C.SsNotStreaming
-        liftIO . BCh.writeBChan commandChan $ C.CmdRefreshChatsList (Just chat.chatId)
+        liftIO . BCh.writeBChan commandChan $ C.CmdRefreshChatsList (Just . Right $ chat.chatId)
 
     (_, Vty.KChar 'e', [Vty.MCtrl]) -> do
       use C.stChatCurrent >>= \case
@@ -444,6 +444,14 @@ handleTabChat commandChan store ev ve focused k ms =
     (Just C.NChatMsgList, _, _) -> do
       --C.stDebug .= show (k, ms)
       B.zoom C.stChatMsgList $ BL.handleListEventVi BL.handleListEvent ve
+
+    (Just C.NChatsList, Vty.KChar '*', _) -> do
+      use (C.stChatsList . to BL.listSelectedElement) >>= \case
+        Nothing -> pass
+        Just (_, chat) -> do
+          C.stDebug .= "Default chat set: " <> chat.chatName
+          C.stAppConfig %= \cfg2 -> cfg2 { C.acDefaultChatName = Just chat.chatName }
+          liftIO . Cfg.writeAppConfig =<< use C.stAppConfig
 
     (Just C.NChatsList, _, _) -> do
       B.zoom C.stChatsList $ BL.handleListEventVi BL.handleListEvent ve
@@ -673,8 +681,14 @@ runCommands commandChan eventChan store = forever $ do
           --TODO send message for error
           pass
 
-    C.CmdRefreshChatsList overrideSelect -> do
+    C.CmdRefreshChatsList overrideSelect1 -> do
       chats <- store.swListChats
+      let overrideSelect =
+           case overrideSelect1 of
+             Nothing -> Nothing
+             Just (Right chatId) -> Just chatId
+             Just (Left chatName) -> C.chatId <$> find (\c -> c.chatName == chatName) chats
+
       BCh.writeBChan eventChan $ C.UeGotChatsList chats overrideSelect
 
 

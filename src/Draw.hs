@@ -259,9 +259,13 @@ drawChatInner st =
 
     renderChatItem :: Bool -> C.Chat -> B.Widget C.Name
     renderChatItem _selected chat =
+      let defaultMarker =
+            if Just chat.chatName == st._stAppConfig.acDefaultChatName
+            then B.withAttr (B.attrName "chatDefaultMarker") $ B.txt "*"
+            else B.txt " "
+      in
       B.vLimit 1 $
-      B.txt chat.chatName
-
+      defaultMarker <+> B.txt chat.chatName
 ---------------------------------------------------------------------------------------------------
 
 
