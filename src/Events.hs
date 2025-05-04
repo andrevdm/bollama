@@ -760,10 +760,14 @@ handleEventPopupChatEdit _commandChan ev ve = do
     Vty.EvKey k ms -> do
       case (focused, k, ms) of
         (_, Vty.KChar 'q', [Vty.MCtrl]) -> do
+          C.stPopChatEditName . BE.editContentsL %= TxtZ.clearZipper
+          C.stPopChatEditFocus %= BF.focusSetCurrent C.NPopChatEditName
           C.stPopup .= Nothing
           C.stPopChatEditTitle .= Nothing
 
         (_, Vty.KEsc, []) -> do
+          C.stPopChatEditName . BE.editContentsL %= TxtZ.clearZipper
+          C.stPopChatEditFocus %= BF.focusSetCurrent C.NPopChatEditName
           C.stPopup .= Nothing
           C.stPopChatEditTitle .= Nothing
 
@@ -816,10 +820,12 @@ handleEventPopupPrompt _commandChan ev ve = do
         (_, Vty.KChar 'q', [Vty.MCtrl]) -> do
           C.stPopup .= Nothing
           C.stPopPromptTitle .= Nothing
+          C.stPopPromptFocus %= BF.focusSetCurrent C.NPopPromptEdit
 
         (_, Vty.KEsc, []) -> do
           C.stPopup .= Nothing
           C.stPopPromptTitle .= Nothing
+          C.stPopPromptFocus %= BF.focusSetCurrent C.NPopPromptEdit
 
         (_, Vty.KChar '\t', []) -> do
           C.stPopPromptFocus %= BF.focusNext
