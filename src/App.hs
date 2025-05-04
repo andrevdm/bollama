@@ -16,6 +16,7 @@ import Brick.Focus qualified as BF
 import Brick qualified as B
 import Brick.Widgets.Edit qualified as BE
 import Brick.Widgets.List qualified as BL
+import Control.Exception.Safe (catch)
 import Data.Time qualified as DT
 import Data.Vector qualified as V
 import Graphics.Vty qualified as Vty
@@ -44,8 +45,8 @@ runTui = do
   -- Create a temporary chat
   _ <- store.swNewChat "#Temp" (Cfg.defaultModel cfg) C.SsNotStreaming
 
-  void . forkIO $ E.runCommands commandChan eventChan store
-  void . forkIO $ E.runTick eventChan
+  void . forkIO . catchEx store "commands channel" $ E.runCommands commandChan eventChan store
+  void . forkIO . catchEx store "events channel" $ E.runTick eventChan
 
   attrMap <- readAttrMap
 
@@ -128,3 +129,12 @@ runTui = do
       (_es, m) <- Cfg.loadTheme
       print _es
       pure m
+
+
+    catchEx :: C.StoreWrapper -> Text -> IO () -> IO ()
+    catchEx store n action = do
+      catch
+        action
+        (\(e :: SomeException) -> do
+          store.swLog.lgError $ "Exception: in " <> n <> "\n" <> show e
+        )

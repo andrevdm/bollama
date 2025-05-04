@@ -673,9 +673,15 @@ runCommands commandChan eventChan store = forever $ do
               }
 
           void . forkIO $ do
-            _r <- O.chat ops
-            --TODO check response
-            pass
+            catch
+              (do
+                _r <- O.chat ops
+                --TODO check response
+                pass
+              )
+              (\(_ :: SomeException) -> do
+                store.swLog.lgError $ "Exception in chat stream: \n" <> show chatId
+              )
 
         Nothing -> do
           --TODO send message for error
