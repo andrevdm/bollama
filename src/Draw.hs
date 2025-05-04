@@ -224,9 +224,14 @@ drawChatInner st =
       let
         inputEditSelected = BF.focusGetCurrent st._stFocusChat == Just C.NChatInputEdit
         msgListSelected = BF.focusGetCurrent st._stFocusChat == Just C.NChatMsgList
+        modelName = fromMaybe "" $ st._stChatCurrent <&> (C.chatModel) . fst
       in
       borderWithLabel' msgListSelected "Conversation"
-      ( BL.renderListWithIndex (renderChatListItem msgListSelected) msgListSelected (st._stChatMsgList)
+      ( (B.withAttr (B.attrName "colHeader") $ B.txt "Model: ") <+> (B.txt modelName)
+        <=>
+        B.txt " "
+        <=>
+        BL.renderListWithIndex (renderChatListItem msgListSelected) msgListSelected (st._stChatMsgList)
       )
       <=>
       B.vLimit 8

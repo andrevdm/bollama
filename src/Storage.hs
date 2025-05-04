@@ -112,6 +112,7 @@ newStoreWrapper mkStore = do
        , swAddMessage = addMessage st
        , swStreamDone = \c -> streamDone st c >>= evict st
        , swAddStreamedChatContent = addStreamedChatContent st
+       , swSaveChat = saveChat st
 
        , swLog = logger
        }
@@ -179,6 +180,19 @@ newStoreWrapper mkStore = do
         pure st { cache = cache2 }
 
       pure chat
+
+    saveChat :: MVar' WrapperState -> C.Chat -> IO ()
+    saveChat st' chat = do
+      modifyMVar'_ st' $ \st -> do
+        -- Update the cache with the new chat
+        let cache2 = Map.adjust (\(ss, c1, ms) ->
+             let c2 = c1 { C.chatName = chat.chatName, C.chatModel = chat.chatModel, C.chatUpdatedAt = chat.chatUpdatedAt }
+             in
+             (ss, c2, ms)) chat.chatId st.cache
+
+        -- Save the new chat to the store
+        _ <- st.store.srSaveChat chat
+        pure st { cache = cache2 }
 
 
     getChat :: MVar' WrapperState -> C.ChatId -> IO (Maybe (C.Chat, [C.ChatMessage], C.StreamingState))

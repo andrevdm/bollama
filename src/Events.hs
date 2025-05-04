@@ -148,7 +148,6 @@ handleEventNoPopup commandChan ev ve = do
         (C.TabLog, _, _, _, _) -> handleTabLog commandChan ev ve focused k ms
         ---------------------------------------------------------------------------------------------------
 
-        _ -> pass
     _ -> pass
 ---------------------------------------------------------------------------------------------------
 
@@ -184,7 +183,7 @@ handleAppEvent commandChan uev = do
 
       C.stDebug .= (U.logLevelName lvl) <> ":" <> msg
 
-      when (lvl == C.LlCritical) $ do
+      when (lvl `elem` [C.LlCritical, C.LlError]) $ do
         C.stErrorMessage .= Just msg
 
 
@@ -267,13 +266,13 @@ handleAppEventGotTime _commandChan t = do
 handleChatUpdated :: C.ChatId -> B.EventM C.Name C.UiState ()
 handleChatUpdated chatId  = do
   use C.stChatCurrent >>= \case
-    Just (currentChatId, streamingStateOld) | currentChatId == chatId -> do
+    Just (currentChat, streamingStateOld) | currentChat.chatId == chatId -> do
       store <- use C.stStore
       (ms, streamingState) <- liftIO store.swGetCurrent >>= \case
         Nothing -> pure ([], streamingStateOld)
         Just (_, _, ss, ms') -> pure (ms', ss)
 
-      C.stChatCurrent .= Just (currentChatId, streamingState)
+      C.stChatCurrent .= Just (currentChat, streamingState)
       C.stChatMsgList %= BL.listMoveToEnd . BL.listReplace (V.fromList . reverse $ ms) Nothing
 
     _ -> do
@@ -456,8 +455,8 @@ handleTabChat commandChan store ev ve focused k ms =
       C.stPopup .= Just C.PopupChatEdit
       C.stPopChatEditTitle .= Just "New chat"
       C.stPopChatEditOnOk .= \name model -> do
-        chat <- store.swNewChat name model C.SsNotStreaming
-        BCh.writeBChan commandChan $ C.CmdRefreshChatsList (Just chat.chatId)
+        chat <- liftIO $ store.swNewChat name model C.SsNotStreaming
+        liftIO . BCh.writeBChan commandChan $ C.CmdRefreshChatsList (Just chat.chatId)
 
 
     (Just C.NChatInputEdit, Vty.KChar 'r', [Vty.MCtrl]) -> do
@@ -485,32 +484,46 @@ handleTabChat commandChan store ev ve focused k ms =
 
   where
     runInput = do
-      let chatModel = "qwen3:0.6b" --TODO
-      let chatName = "chatX" --TODO
+      liftIO store.swGetCurrent >>= \case
+        Just (cid, chat, _strmState, _) -> do
+          txt <- use (C.stChatInput . BE.editContentsL . to TxtZ.getText . to Txt.unlines . to Txt.strip)
 
-      cid <-
-        liftIO store.swGetCurrent >>= \case
-          Just (cid', _, _strmState, _) -> pure cid'
-          Nothing -> do
-            chat <- liftIO $ store.swNewChat chatName chatModel C.SsNotStreaming --TODO why
-            _ <- liftIO $ store.swSetCurrent (Just chat.chatId)
-            pure chat.chatId
+          unless (Txt.null txt) $ do
+            isValidModel chat.chatModel >>= \case
+              True -> do
+                liftIO (store.swAddMessage cid O.User C.SsStreaming chat.chatModel txt) >>= \case
+                  Right newMsg -> do
+                    C.stChatCurrent .= Just (chat, C.SsStreaming)
+                    C.stChatInput . BE.editContentsL %= TxtZ.clearZipper
+                    handleChatUpdated cid
+                    liftIO . BCh.writeBChan commandChan $ C.CmdChatSend cid newMsg
 
-      txt <- use (C.stChatInput . BE.editContentsL . to TxtZ.getText . to Txt.unlines . to Txt.strip)
+                  Left err -> do
+                    liftIO . store.swLog.lgError $ "Error sending message: " <> err
 
-      unless (Txt.null txt) $ do
-        liftIO (store.swAddMessage cid O.User C.SsStreaming chatModel txt) >>= \case
-          Right newMsg -> do
-            C.stChatCurrent .= Just (cid, C.SsStreaming)
-            C.stChatInput . BE.editContentsL %= TxtZ.clearZipper
-            handleChatUpdated cid
+              False -> do
+                C.stDebug .= "Invalid model name: " <> chat.chatModel
+                C.stPopup .= Just C.PopupChatEdit
+                C.stPopChatEditFocus %= BF.focusSetCurrent C.NPopChatEditModels
+                C.stPopChatEditTitle .= Just "Select a model"
+                C.stPopChatEditModels %= BL.listFindBy (\i -> i.miName == chat.chatModel)
+                C.stPopChatEditName . BE.editContentsL .= TxtZ.textZipper [chat.chatName] Nothing
+                C.stPopChatEditOnOk .= \name model -> do
+                  let chat2 = chat { C.chatName = name, C.chatModel = model }
+                  liftIO $ store.swSaveChat chat2
+                  C.stChatCurrent %= \case
+                    Just (_, ss) -> Just (chat2, ss)
+                    Nothing -> Nothing
 
-            liftIO . BCh.writeBChan commandChan $ C.CmdChatSend cid newMsg
+
+        Nothing -> do
+          liftIO $ store.swLog.lgError "No current chat"
 
 
-          Left err -> do
-            C.stDebug .= "error: " <> err
-            --TODO
+    isValidModel n = do
+      models <- use C.stModels
+      pure $ n `elem` (models <&> (.miName))
+
 
 
 handleChatSelectionUpdate :: B.EventM C.Name C.UiState ()
@@ -521,7 +534,7 @@ handleChatSelectionUpdate = do
 
   case (selectedChat', prevSelected') of
     -- No change, nothing to do
-    (Just (_, selectedChat), Just (prevChatId, _)) | selectedChat.chatId == prevChatId -> do
+    (Just (_, selectedChat), Just (prevChatId, _)) | selectedChat.chatId == prevChatId.chatId -> do
       pass
 
     -- Nothing selected, clear current
@@ -534,7 +547,7 @@ handleChatSelectionUpdate = do
     (Just (_, selectedChat), _)-> do
       liftIO (store.swSetCurrent (Just selectedChat.chatId)) >>= \case
         Just (_, _, streamingState) -> do
-          C.stChatCurrent .= Just (selectedChat.chatId, streamingState)
+          C.stChatCurrent .= Just (selectedChat, streamingState)
           handleChatUpdated selectedChat.chatId
 
         Nothing -> do
@@ -729,7 +742,7 @@ runTick eventChan = do
 -- Error Message
 ----------------------------------------------------------------------------------------------------------------------
 handleEventErrorMessage :: BCh.BChan C.Command -> B.BrickEvent C.Name C.UiEvent -> Vty.Event -> B.EventM C.Name C.UiState ()
-handleEventErrorMessage _commandChan ev ve = do
+handleEventErrorMessage _commandChan _ev ve = do
   st <- B.get
   let focused = BF.focusGetCurrent st._stPopChatEditFocus
 
@@ -791,7 +804,7 @@ handleEventPopupChatEdit _commandChan ev ve = do
           C.stPopChatEditTitle .= Nothing
           C.stPopChatEditName . BE.editContentsL %= TxtZ.clearZipper
           C.stPopChatEditFocus %= BF.focusSetCurrent C.NPopChatEditName
-          liftIO $ st._stPopChatEditOnOk chatName chatModel
+          st._stPopChatEditOnOk chatName chatModel
 
         (Just C.NDialogCancel, Vty.KEnter, []) -> do
           C.stPopChatEditName . BE.editContentsL %= TxtZ.clearZipper

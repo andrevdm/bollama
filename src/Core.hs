@@ -111,7 +111,7 @@ data UiState = UiState
 
   , _stFocusChat :: !(BF.FocusRing Name)
   , _stChatInput :: !(BE.Editor Text Name)
-  , _stChatCurrent :: !(Maybe (ChatId, StreamingState))
+  , _stChatCurrent :: !(Maybe (Chat, StreamingState))
   , _stChatMsgList :: !(BL.List Name ChatMessage)
   , _stChatsList :: !(BL.List Name Chat)
 
@@ -127,7 +127,7 @@ data UiState = UiState
   , _stPopChatEditTitle :: !(Maybe Text)
   , _stPopChatEditName :: !(BE.Editor Text Name)
   , _stPopChatEditModels :: !(BL.List Name ModelItem)
-  , _stPopChatEditOnOk :: !(Text -> Text -> IO ())
+  , _stPopChatEditOnOk :: !(Text -> Text -> B.EventM Name UiState ())
   }
 
 data Chat = Chat
@@ -160,6 +160,7 @@ data StoreWrapper = StoreWrapper
 
   , swNewChat :: !(Text -> Text -> StreamingState -> IO Chat)
   , swGetChat :: !(ChatId -> IO (Maybe (Chat, [ChatMessage], StreamingState)))
+  , swSaveChat :: !(Chat -> IO ())
   , swSetCurrent :: !(Maybe ChatId -> IO (Maybe (Chat, [ChatMessage], StreamingState)))
   , swGetCurrent :: !(IO (Maybe (ChatId, Chat, StreamingState, [ChatMessage])))
   , swAddMessage :: !(ChatId -> O.Role -> StreamingState -> Text -> Text -> IO (Either Text ChatMessage))
