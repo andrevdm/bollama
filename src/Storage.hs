@@ -380,7 +380,7 @@ newSqliteStore dbPath onLog = do
                          }
 
                  msgs1 :: [(Text, Text, Text, DT.UTCTime, Text)] <-
-                   Sq.query conn "SELECT id, role, model, createdAt, msg FROM chatMessage WHERE chatId = ? order by createdAt" (Sq.Only chatId)
+                   Sq.query conn "SELECT id, role, model, createdAt, msg FROM chatMessage WHERE chatId = ? order by createdAt desc" (Sq.Only chatId)
 
                  let msgs =
                        msgs1 <&> \(msgId, role, msgModel, msgCreatedAt, msg) ->
