@@ -129,7 +129,7 @@ newStoreWrapper mkStore = do
         stored <- st.store.srListChats
         -- Temp chats are not stored
         let tmp = mapMaybe (\(_, c, _) -> if Txt.isInfixOf "#" c.chatName then Just c else Nothing) (Map.elems st.cache)
-        pure . sortOn C.chatName $ stored <> tmp
+        pure . reverse . sortOn C.chatUpdatedAt $ stored <> tmp
 
 
     evict :: MVar' WrapperState -> a -> IO a

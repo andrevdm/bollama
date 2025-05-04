@@ -212,7 +212,7 @@ drawChatInner st =
     drawChatMainLeft =
       let selected = BF.focusGetCurrent st._stFocusChat == Just C.NChatsList
       in
-      B.hLimit 40 $
+      B.hLimit 50 $
       borderWithLabel' selected "Chats" $
       BL.renderList renderChatItem selected (st._stChatsList)
 

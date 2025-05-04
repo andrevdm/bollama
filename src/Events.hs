@@ -682,7 +682,8 @@ runCommands commandChan eventChan store = forever $ do
           pass
 
     C.CmdRefreshChatsList overrideSelect1 -> do
-      chats <- store.swListChats
+      chats1 <- store.swListChats
+      let chats = reverse $ sortOn (C.chatUpdatedAt) chats1
       let overrideSelect =
            case overrideSelect1 of
              Nothing -> Nothing
