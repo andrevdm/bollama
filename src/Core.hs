@@ -194,6 +194,7 @@ data Popup
 
 data AppConfig = AppConfig
   { acModelTag :: !(Map Text Text)
+  , acDefaultModel :: !(Maybe Text)
   } deriving (Show, Eq, Generic)
 
 data StreamingState
@@ -228,7 +229,10 @@ data LogEntry = LogEntry
 
 
 instance Ae.FromJSON AppConfig where
-  parseJSON = Ae.genericParseJSON Ae.defaultOptions { Ae.fieldLabelModifier = renSnake 2 }
+  parseJSON = Ae.withObject "AppConfig" $ \o -> do
+    acModelTag <- o Ae..:? "model_tag"
+    acDefaultModel <- o Ae..:? "default_model"
+    pure $ AppConfig (fromMaybe mempty acModelTag) acDefaultModel
 
 instance Ae.ToJSON AppConfig where
   toJSON = Ae.genericToJSON Ae.defaultOptions { Ae.fieldLabelModifier = renSnake 2 }

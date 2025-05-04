@@ -236,7 +236,7 @@ drawChatInner st =
       <=>
       B.vLimit 8
       (
-        borderWithLabel' inputEditSelected "Input"
+        borderWithLabel' inputEditSelected "Input (ctrl-s to send)"
         ( case (snd <$> st._stChatCurrent) of
             Nothing -> B.fill ' '
             Just C.SsNotStreaming -> (BE.renderEditor (B.txt . Txt.unlines) inputEditSelected st._stChatInput)

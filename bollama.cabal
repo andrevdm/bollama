@@ -43,6 +43,7 @@ library
     base >= 4.20 && < 5,
     verset,
     aeson,
+    aeson-pretty,
     ansi-terminal,
     async,
     auto-update,

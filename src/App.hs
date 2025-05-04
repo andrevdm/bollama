@@ -35,13 +35,14 @@ runTui = do
   eventChan <- BCh.newBChan 1000
   commandChan <- BCh.newBChan @C.Command 1000
 
+  cfg <- Cfg.loadAppConfig
+
   dbPath' <- Cfg.getStateDir
   let dbPath = dbPath' </> "bollama.db"
   store <- Sr.newStoreWrapper $ Sr.newSqliteStore dbPath (\l e -> BCh.writeBChan commandChan $ C.CmdUpdateLog l e)
 
   -- Create a temporary chat
-  -- TODO config default model
-  _ <- store.swNewChat "#Temp" "" C.SsNotStreaming
+  _ <- store.swNewChat "#Temp" (Cfg.defaultModel cfg) C.SsNotStreaming
 
   void . forkIO $ E.runCommands commandChan eventChan store
   void . forkIO $ E.runTick eventChan
@@ -63,7 +64,6 @@ runTui = do
   initialVty <- buildVty
 
   now <- DT.getCurrentTime
-  cfg <- Cfg.loadAppConfig
 
 
   let initialState = C.UiState

@@ -11,6 +11,8 @@ module Config where
 import           Verset
 
 import Data.Aeson qualified as Ae
+import Data.Aeson.Encode.Pretty qualified as Ae
+import Data.ByteString.Lazy as BSL
 import Data.Text qualified as Txt
 import Data.Version qualified as Ver
 import Paths_bollama qualified as Paths
@@ -49,6 +51,7 @@ getDataDir = do
 emptyAppConfig :: C.AppConfig
 emptyAppConfig = C.AppConfig
   { acModelTag = mempty
+  , acDefaultModel = Just mempty
   }
 
 
@@ -65,7 +68,7 @@ loadAppConfig = do
         Right cfg' -> pure cfg'
         Left _err -> do
           Dir.removeFile configFile
-          pure $ C.AppConfig mempty
+          pure emptyAppConfig
 
 
 writeAppConfig :: C.AppConfig -> IO ()
@@ -74,4 +77,10 @@ writeAppConfig cfg = do
   Dir.createDirectoryIfMissing True configDir
 
   let configFile = configDir </> "config.json"
-  Ae.encodeFile configFile cfg
+  let bs = Ae.encodePretty cfg
+  BSL.writeFile configFile bs
+
+
+defaultModel :: C.AppConfig -> Text
+defaultModel cfg = fromMaybe "qwen3:0.6b" $ cfg.acDefaultModel
+  where
