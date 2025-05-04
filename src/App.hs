@@ -39,6 +39,10 @@ runTui = do
   let dbPath = dbPath' </> "bollama.db"
   store <- Sr.newStoreWrapper $ Sr.newSqliteStore dbPath (\l e -> BCh.writeBChan commandChan $ C.CmdUpdateLog l e)
 
+  -- Create a temporary chat
+  -- TODO config default model
+  _ <- store.swNewChat "#Temp" "" C.SsNotStreaming
+
   void . forkIO $ E.runCommands commandChan eventChan store
   void . forkIO $ E.runTick eventChan
 

@@ -458,6 +458,19 @@ handleTabChat commandChan store ev ve focused k ms =
         chat <- liftIO $ store.swNewChat name model C.SsNotStreaming
         liftIO . BCh.writeBChan commandChan $ C.CmdRefreshChatsList (Just chat.chatId)
 
+    (_, Vty.KChar 'e', [Vty.MCtrl]) -> do
+      use C.stChatCurrent >>= \case
+        Nothing -> pass
+        Just (chat, ss) -> do
+          C.stPopup .= Just C.PopupChatEdit
+          C.stPopChatEditTitle .= Just "Edit chat"
+          C.stPopChatEditFocus %= BF.focusSetCurrent C.NPopChatEditName
+          C.stPopChatEditName . BE.editContentsL .= TxtZ.textZipper [chat.chatName] Nothing
+          C.stPopChatEditOnOk .= \name model -> do
+            let chat2 = chat { C.chatName = name, C.chatModel = model }
+            liftIO $ store.swSaveChat chat2
+            C.stChatCurrent .= Just (chat2, ss)
+
 
     (Just C.NChatInputEdit, Vty.KChar 'r', [Vty.MCtrl]) -> do
       runInput
