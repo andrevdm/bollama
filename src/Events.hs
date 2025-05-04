@@ -14,7 +14,6 @@ module Events
 
 import           Verset
 
-import Brick ((<+>))
 import Brick.BChan qualified as BCh
 import Brick.Focus qualified as BF
 import Brick qualified as B
@@ -36,8 +35,8 @@ import Data.Vector qualified as V
 import Graphics.Vty qualified as Vty
 import Ollama qualified as O
 
-import Core qualified as C
 import Config qualified as Cfg
+import Core qualified as C
 import Utils qualified as U
 
 
@@ -62,6 +61,7 @@ handleEvent commandChan ev = do
               use C.stPopup >>= \case
                 -- Then the popup
                 Just C.PopupChatEdit -> handleEventPopupChatEdit commandChan ev ve
+                Just C.PopupPrompt -> handleEventPopupPrompt commandChan ev ve
                 -- Otherwise the main UI gets the event
                 Nothing -> handleEventNoPopup commandChan ev ve
 
@@ -81,7 +81,6 @@ handleEventNoPopup commandChan ev ve = do
     Vty.EvKey k ms -> do
       st <- B.get
       let
-        footerWidgetName = fst <$> st._stFooterWidget
         focused =
           case st._stTab of
             C.TabModels -> BF.focusGetCurrent st._stFocusModels
@@ -91,49 +90,41 @@ handleEventNoPopup commandChan ev ve = do
             C.TabLog -> BF.focusGetCurrent st._stFocusLog
 
 
-      case (st._stTab, footerWidgetName, focused, k, ms) of
+      case (st._stTab, focused, k, ms) of
         ---------------------------------------------------------------------------------------------------
         -- Global
         ---------------------------------------------------------------------------------------------------
-        (_, _, _, Vty.KChar 'q', [Vty.MCtrl]) -> B.halt
+        (_, _, Vty.KChar 'q', [Vty.MCtrl]) -> B.halt
 
-        (_, _, _, Vty.KChar 'u', [Vty.MCtrl]) -> do
+        (_, _, Vty.KChar 'u', [Vty.MCtrl]) -> do
           (_es, m) <- liftIO $ U.attrMapFromFile "defaultAttrs.csv"
           C.stAttrMap .= m
         ---------------------------------------------------------------------------------------------------
 
 
         ---------------------------------------------------------------------------------------------------
-        -- Footer widget active
-        ---------------------------------------------------------------------------------------------------
-        (C.TabModels, Just C.NModelEditSearch, _, _, _) -> handleFooterWidgetModelSearch commandChan ev k ms
-        (C.TabModels, Just C.NModelEditTag, _, _, _) -> handleFooterWidgetModelTag commandChan ev k ms
-        ---------------------------------------------------------------------------------------------------
-
-
-        ---------------------------------------------------------------------------------------------------
         -- Function keys
         ---------------------------------------------------------------------------------------------------
-        (_, _, _, Vty.KFun 2, []) -> do
+        (_, _, Vty.KFun 2, []) -> do
           unless (st._stTab == C.TabModels) $ do
             C.stLoadingPs .= True
             C.stTab .= C.TabModels
 
-        (_, _, _, Vty.KFun 3, []) -> do
+        (_, _, Vty.KFun 3, []) -> do
           unless (st._stTab == C.TabPs) $ do
             liftIO . BCh.writeBChan commandChan $ C.CmdRefreshPs
             C.stLoadingPs .= True
             C.stTab .= C.TabPs
 
-        (_, _, _, Vty.KFun 4, []) -> do
+        (_, _, Vty.KFun 4, []) -> do
           unless (st._stTab == C.TabChat) $ do
             C.stLoadingPs .= True
             C.stTab .= C.TabChat
 
-        (_, _, _, Vty.KFun 11, []) -> do
+        (_, _, Vty.KFun 11, []) -> do
             C.stTab .= C.TabColours
 
-        (_, _, _, Vty.KFun 12, []) -> do
+        (_, _, Vty.KFun 12, []) -> do
             C.stTab .= C.TabLog
         ---------------------------------------------------------------------------------------------------
 
@@ -141,11 +132,11 @@ handleEventNoPopup commandChan ev ve = do
         ---------------------------------------------------------------------------------------------------
         -- Tabs
         ---------------------------------------------------------------------------------------------------
-        (C.TabModels, _, _, _, _) -> handleTabModels commandChan ev ve focused k ms
-        (C.TabPs, _, _, _, _) -> handleTabPs commandChan ev ve focused k ms
-        (C.TabChat, _, _, _, _) -> handleTabChat commandChan st._stStore ev ve focused k ms
-        (C.TabColours, _, _, _, _) -> handleTabColours commandChan ev ve focused k ms
-        (C.TabLog, _, _, _, _) -> handleTabLog commandChan ev ve focused k ms
+        (C.TabModels, _, _, _) -> handleTabModels commandChan ev ve focused k ms
+        (C.TabPs, _, _, _) -> handleTabPs commandChan ev ve focused k ms
+        (C.TabChat, _, _, _) -> handleTabChat commandChan st._stStore ev ve focused k ms
+        (C.TabColours, _, _, _) -> handleTabColours commandChan ev ve focused k ms
+        (C.TabLog, _, _, _) -> handleTabLog commandChan ev ve focused k ms
         ---------------------------------------------------------------------------------------------------
 
     _ -> pass
@@ -293,65 +284,6 @@ handleChatStreamResponseDone _commandChan chatId = do
 
 
 
-
-
----------------------------------------------------------------------------------------------------
--- Footer Events
----------------------------------------------------------------------------------------------------
-handleFooterWidgetModelSearch
-  :: BCh.BChan C.Command
-  -> B.BrickEvent C.Name C.UiEvent
-  -> Vty.Key
-  -> [Vty.Modifier]
-  -> B.EventM C.Name C.UiState ()
-handleFooterWidgetModelSearch _commandChan ev k ms =
-  case (k, ms) of
-    (Vty.KEsc, []) -> do
-      C.stFooterWidget .= Nothing
-
-    (Vty.KEnter, []) -> do
-      txt <- use (C.stModelFilterEditor . BE.editContentsL . to TxtZ.getText)
-      C.stModelsFilter .= Txt.unlines txt
-      C.stFooterWidget .= Nothing
-      filteredModels <- filterModels
-      wasSelected <- B.gets (^?  C.stModelsList . BL.listSelectedElementL . to C.miName)
-      let ix = findIndex (\x -> Just x.miName == wasSelected) filteredModels
-      C.stModelsList %= BL.listReplace (V.fromList filteredModels) ix
-
-    (_, _) -> do
-      B.zoom C.stModelFilterEditor $ BE.handleEditorEvent ev
-
-
-
-handleFooterWidgetModelTag
-  :: BCh.BChan C.Command
-  -> B.BrickEvent C.Name C.UiEvent
-  -> Vty.Key
-  -> [Vty.Modifier]
-  -> B.EventM C.Name C.UiState ()
-handleFooterWidgetModelTag _commandChan ev k ms =
-  case (k, ms) of
-    (Vty.KEsc, []) -> do
-      C.stFooterWidget .= Nothing
-
-    (Vty.KEnter, []) -> do
-      B.gets (^?  C.stModelsList . BL.listSelectedElementL . to C.miName) >>= \case
-        Nothing -> pass
-        Just selected -> do
-          txt <- use (C.stModelTagEditor . BE.editContentsL . to TxtZ.getText)
-          C.stAppConfig %= \cfg ->
-            cfg { C.acModelTag = Map.insert selected (Txt.unlines txt) cfg.acModelTag }
-          liftIO . Cfg.writeAppConfig =<< use C.stAppConfig
-
-      C.stModelTagEditor . BE.editContentsL %= TxtZ.clearZipper
-      C.stFooterWidget .= Nothing
-
-    (_, _) -> do
-      B.zoom C.stModelTagEditor $ BE.handleEditorEvent ev
----------------------------------------------------------------------------------------------------
-
-
-
 ---------------------------------------------------------------------------------------------------
 -- Models Tab Events
 ---------------------------------------------------------------------------------------------------
@@ -366,18 +298,33 @@ handleTabModels
 handleTabModels _commandChan _ev ve focused k ms =
   case (focused, k, ms) of
     (Just C.NModelsList, Vty.KChar '/', []) -> do
-      C.stFooterWidget .= Just (C.NModelEditSearch, \st2 -> (B.withAttr (B.attrName "footerTitle") $ B.txt "filter: ") <+> BE.renderEditor (B.txt . Txt.unlines) True st2._stModelFilterEditor)
+      currentFilter <- use C.stModelsFilter
+      C.stPopup .= Just C.PopupPrompt
+      C.stPopPromptEdit . BE.editContentsL .= TxtZ.textZipper [currentFilter] Nothing
+      C.stPopPromptTitle .= Just "Model filter"
+      C.stPopPromptOnOk .= \txt -> do
+        C.stModelsFilter .= txt
+        filteredModels <- filterModels
+        wasSelected <- B.gets (^?  C.stModelsList . BL.listSelectedElementL . to C.miName)
+        let ix = findIndex (\x -> Just x.miName == wasSelected) filteredModels
+        C.stModelsList %= BL.listReplace (V.fromList filteredModels) ix
 
     (Just C.NModelsList, Vty.KChar 't', []) -> do
-      cfg <- use C.stAppConfig
-      tags <-
+      tags <- do
+        cfg <- use C.stAppConfig
         B.gets (^?  C.stModelsList . BL.listSelectedElementL . to C.miName) >>= \case
           Nothing -> pure ""
-          Just selected -> do
-            pure . fromMaybe "" $ Map.lookup selected cfg.acModelTag
+          Just selected -> pure . maybe "" (Txt.strip . Txt.replace "\n" " " . Txt.replace "\r" " ") $ Map.lookup selected cfg.acModelTag
 
-      C.stModelTagEditor .= BE.editorText C.NModelEditTag (Just 1) tags
-      C.stFooterWidget .= Just (C.NModelEditTag, \st2 -> (B.withAttr (B.attrName "footerTitle") $ B.txt "tag: ") <+> BE.renderEditor (B.txt . Txt.unlines) True st2._stModelTagEditor)
+      C.stPopup .= Just C.PopupPrompt
+      C.stPopPromptEdit . BE.editContentsL .= TxtZ.textZipper [tags] Nothing
+      C.stPopPromptTitle .= Just "User tag edit"
+      C.stPopPromptOnOk .= \txt -> do
+        B.gets (^?  C.stModelsList . BL.listSelectedElementL . to C.miName) >>= \case
+          Nothing -> pass
+          Just selected -> do
+            C.stAppConfig %= \cfg2 -> cfg2 { C.acModelTag = Map.insert selected txt cfg2.acModelTag }
+            liftIO . Cfg.writeAppConfig =<< use C.stAppConfig
 
     (Just C.NModelsList, _, _) -> do
       B.zoom C.stModelsList $ BL.handleListEventVi BL.handleListEvent ve
@@ -566,8 +513,6 @@ handleChatSelectionUpdate = do
         Nothing -> do
           C.stChatCurrent .= Nothing
           C.stChatMsgList %= BL.listClear
-
-
 ---------------------------------------------------------------------------------------------------
 
 
@@ -829,6 +774,64 @@ handleEventPopupChatEdit _commandChan ev ve = do
 
       pass
     _ -> pass
+----------------------------------------------------------------------------------------------------------------------
+
+
+
+----------------------------------------------------------------------------------------------------------------------
+-- Prompt Popup
+----------------------------------------------------------------------------------------------------------------------
+handleEventPopupPrompt :: BCh.BChan C.Command -> B.BrickEvent C.Name C.UiEvent -> Vty.Event -> B.EventM C.Name C.UiState ()
+handleEventPopupPrompt _commandChan ev ve = do
+  st <- B.get
+  let focused = BF.focusGetCurrent st._stPopPromptFocus
+
+  case ve of
+    Vty.EvKey k ms -> do
+      case (focused, k, ms) of
+        (_, Vty.KChar 'q', [Vty.MCtrl]) -> do
+          C.stPopup .= Nothing
+          C.stPopPromptTitle .= Nothing
+
+        (_, Vty.KEsc, []) -> do
+          C.stPopup .= Nothing
+          C.stPopPromptTitle .= Nothing
+
+        (_, Vty.KChar '\t', []) -> do
+          C.stPopPromptFocus %= BF.focusNext
+
+        (_, Vty.KBackTab, []) -> do
+          C.stPopPromptFocus %= BF.focusPrev
+
+        (Just C.NPopPromptEdit, Vty.KChar 'k', [Vty.MCtrl]) -> do
+          C.stPopPromptEdit . BE.editContentsL %= TxtZ.clearZipper
+
+        (Just C.NPopPromptEdit, Vty.KEnter, []) -> do
+          accept st
+
+        (Just C.NPopPromptEdit, _, _) -> do
+          B.zoom C.stPopPromptEdit $ BE.handleEditorEvent ev
+
+        (Just C.NDialogOk, Vty.KEnter, []) -> do
+          accept st
+
+        (Just C.NDialogCancel, Vty.KEnter, []) -> do
+          C.stPopup .= Nothing
+          C.stPopPromptTitle .= Nothing
+          C.stPopPromptFocus %= BF.focusSetCurrent C.NPopPromptEdit
+
+        _ -> pass
+
+      pass
+    _ -> pass
+
+  where
+    accept st = do
+      txt <- use (C.stPopPromptEdit . BE.editContentsL . to TxtZ.getText . to Txt.unlines . to Txt.strip)
+      C.stPopup .= Nothing
+      C.stPopPromptTitle .= Nothing
+      C.stPopPromptFocus %= BF.focusSetCurrent C.NPopPromptEdit
+      st._stPopPromptOnOk txt
 ----------------------------------------------------------------------------------------------------------------------
 
 

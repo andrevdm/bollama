@@ -49,6 +49,7 @@ drawUI st =
           case st._stPopup of
             Nothing -> BW.emptyWidget
             Just C.PopupChatEdit -> drawPopupChatEdit st
+            Just C.PopupPrompt -> drawPopupPrompt st
 
   -- Draw the main UI
   , drawTabs st
@@ -63,13 +64,7 @@ drawUI st =
 ---------------------------------------------------------------------------------------------------
 footer :: C.UiState -> B.Widget C.Name
 footer st =
-  B.vLimit 1 . B.withAttr (B.attrName "footer") $ B.txt (Cfg.verText <> " | ") <+> drawFooterInput <+> B.fill ' '
-
-  where
-    drawFooterInput =
-      case st._stFooterWidget of
-        Nothing -> B.txt st._stDebug
-        Just (_name', fwidget) -> fwidget st
+  B.vLimit 1 . B.withAttr (B.attrName "footer") $ B.txt (Cfg.verText <> " | ") <+> (B.txt st._stDebug) <+> B.fill ' '
 ---------------------------------------------------------------------------------------------------
 
 
@@ -442,6 +437,43 @@ drawPopupChatEdit st =
         , col 40 cs ""
         , col 50 usr ""
         ]
+---------------------------------------------------------------------------------------------------
+
+
+
+
+---------------------------------------------------------------------------------------------------
+-- Popup Prompt
+---------------------------------------------------------------------------------------------------
+drawPopupPrompt :: C.UiState -> B.Widget C.Name
+drawPopupPrompt st =
+  B.vLimit 10 $
+  B.hLimit 180 $
+  borderWithLabel' True (fromMaybe "Enter text" st._stPopPromptTitle) $
+  B.withAttr (B.attrName "popup") $
+  B.padAll 1 $
+  ( ( B.vLimit 1 $
+      BE.renderEditor (B.txt . Txt.unlines) (BF.focusGetCurrent st._stPopPromptFocus == Just C.NPopPromptEdit) st._stPopPromptEdit
+    )
+    <=>
+    ( B.padTop (B.Pad 2) . BC.hCenter $
+      let
+        (attrOk, attrBorderOk) =
+          if BF.focusGetCurrent st._stPopPromptFocus == Just C.NDialogOk
+          then (B.attrName "popupButtonOkFocused", BBS.unicodeBold)
+          else (B.attrName "popupButtonOk", BBS.unicode)
+
+        (attrCancel, attrBorderCancel) =
+          if BF.focusGetCurrent st._stPopPromptFocus == Just C.NDialogCancel
+          then (B.attrName "popupButtonCancelFocused", BBS.unicodeBold)
+          else (B.attrName "popupButtonCancel", BBS.unicode)
+      in
+      (     B.withBorderStyle attrBorderOk (BB.border (B.withAttr attrOk . B.vLimit 1 . B.hLimit 8 . BC.hCenter $ B.txt "Ok"))
+        <+> B.txt " "
+        <+> B.withBorderStyle attrBorderCancel (BB.border (B.withAttr attrCancel . B.vLimit 1 . B.hLimit 8 . BC.hCenter $ B.txt "Cancel"))
+      )
+    )
+  )
 ---------------------------------------------------------------------------------------------------
 
 

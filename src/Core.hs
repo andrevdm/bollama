@@ -38,6 +38,8 @@ data Name
   | NPopChatEditName
   | NPopChatEditModels
   --
+  | NPopPromptEdit
+  --
   | NLogList
   deriving stock (Show, Eq, Ord)
 
@@ -94,16 +96,12 @@ data UiState = UiState
   , _stAttrMap :: !B.AttrMap
   , _stErrorMessage :: !(Maybe Text)
 
-  , _stFooterWidget :: !(Maybe (Name, UiState -> B.Widget Name))
-
   , _stModels :: ![ModelItem]
   , _stModelsList :: !(BL.List Name ModelItem)
   , _stModelsFilter :: !Text
   , _stModelListLoading :: !Bool
   , _stModelShowLoading :: !Bool
   , _stFocusModels :: !(BF.FocusRing Name)
-  , _stModelFilterEditor :: !(BE.Editor Text Name)
-  , _stModelTagEditor :: !(BE.Editor Text Name)
 
   , _stPs :: !(BL.List Name O.RunningModel)
   , _stFocusPs :: !(BF.FocusRing Name)
@@ -128,6 +126,11 @@ data UiState = UiState
   , _stPopChatEditName :: !(BE.Editor Text Name)
   , _stPopChatEditModels :: !(BL.List Name ModelItem)
   , _stPopChatEditOnOk :: !(Text -> Text -> B.EventM Name UiState ())
+
+  , _stPopPromptFocus :: !(BF.FocusRing Name)
+  , _stPopPromptTitle :: !(Maybe Text)
+  , _stPopPromptEdit :: !(BE.Editor Text Name)
+  , _stPopPromptOnOk :: !(Text -> B.EventM Name UiState ())
   }
 
 data Chat = Chat
@@ -189,6 +192,7 @@ data Tab
 
 data Popup
   = PopupChatEdit
+  | PopupPrompt
   deriving stock (Show, Eq, Ord, Bounded, Enum)
 
 

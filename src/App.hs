@@ -76,7 +76,6 @@ runTui = do
        , _stStore = store
        , _stLog = store.swLog
        , _stAttrMap = attrMap
-       , _stFooterWidget = Nothing
        , _stErrorMessage = Nothing
 
        , _stModels = []
@@ -85,8 +84,6 @@ runTui = do
        , _stModelListLoading = True
        , _stModelShowLoading = True
        , _stFocusModels = BF.focusRing [C.NModelsList]
-       , _stModelFilterEditor = BE.editorText C.NModelEditSearch (Just 1) ""
-       , _stModelTagEditor = BE.editorText C.NModelEditTag (Just 1) ""
 
        , _stPs = BL.list C.NListPs mempty 1
        , _stFocusPs = BF.focusRing [C.NListPs]
@@ -111,6 +108,11 @@ runTui = do
        , _stPopChatEditTitle = Nothing
        , _stPopChatEditModels = BL.list C.NPopChatEditModels mempty 1
        , _stPopChatEditOnOk = (\_name _model -> pure ())
+
+       , _stPopPromptEdit = BE.editorText C.NPopPromptEdit (Just 1) ""
+       , _stPopPromptTitle = Nothing
+       , _stPopPromptFocus = BF.focusRing [C.NPopPromptEdit, C.NDialogOk, C.NDialogCancel]
+       , _stPopPromptOnOk = \_ -> pure ()
        }
 
   _finalState <- B.customMain @C.Name initialVty buildVty (Just eventChan) app initialState
