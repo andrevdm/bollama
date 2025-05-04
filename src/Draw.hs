@@ -50,6 +50,7 @@ drawUI st =
             Nothing -> BW.emptyWidget
             Just C.PopupChatEdit -> drawPopupChatEdit st
             Just C.PopupPrompt -> drawPopupPrompt st
+            Just C.PopupConfirm -> drawPopupConfirm st
 
   -- Draw the main UI
   , drawTabs st
@@ -465,6 +466,43 @@ drawPopupPrompt st =
 
         (attrCancel, attrBorderCancel) =
           if BF.focusGetCurrent st._stPopPromptFocus == Just C.NDialogCancel
+          then (B.attrName "popupButtonCancelFocused", BBS.unicodeBold)
+          else (B.attrName "popupButtonCancel", BBS.unicode)
+      in
+      (     B.withBorderStyle attrBorderOk (BB.border (B.withAttr attrOk . B.vLimit 1 . B.hLimit 8 . BC.hCenter $ B.txt "Ok"))
+        <+> B.txt " "
+        <+> B.withBorderStyle attrBorderCancel (BB.border (B.withAttr attrCancel . B.vLimit 1 . B.hLimit 8 . BC.hCenter $ B.txt "Cancel"))
+      )
+    )
+  )
+---------------------------------------------------------------------------------------------------
+
+
+
+
+---------------------------------------------------------------------------------------------------
+-- Popup Confirm
+---------------------------------------------------------------------------------------------------
+drawPopupConfirm :: C.UiState -> B.Widget C.Name
+drawPopupConfirm st =
+  B.vLimit 10 $
+  B.hLimit 180 $
+  borderWithLabel' True (fromMaybe "Confirm" st._stPopConfirmTitle) $
+  B.withAttr (B.attrName "popup") $
+  B.padAll 1 $
+  ( ( B.withAttr (B.attrName "popupHeader") $
+      B.txt (fromMaybe "Are you sure?" st._stPopConfirmTitle)
+    )
+    <=>
+    ( B.padTop (B.Pad 2) . BC.hCenter $
+      let
+        (attrOk, attrBorderOk) =
+          if BF.focusGetCurrent st._stPopConfirmFocus == Just C.NDialogOk
+          then (B.attrName "popupButtonOkFocused", BBS.unicodeBold)
+          else (B.attrName "popupButtonOk", BBS.unicode)
+
+        (attrCancel, attrBorderCancel) =
+          if BF.focusGetCurrent st._stPopConfirmFocus == Just C.NDialogCancel
           then (B.attrName "popupButtonCancelFocused", BBS.unicodeBold)
           else (B.attrName "popupButtonCancel", BBS.unicode)
       in

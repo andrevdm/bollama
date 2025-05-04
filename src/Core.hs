@@ -131,6 +131,10 @@ data UiState = UiState
   , _stPopPromptTitle :: !(Maybe Text)
   , _stPopPromptEdit :: !(BE.Editor Text Name)
   , _stPopPromptOnOk :: !(Text -> B.EventM Name UiState ())
+
+  , _stPopConfirmFocus :: !(BF.FocusRing Name)
+  , _stPopConfirmTitle :: !(Maybe Text)
+  , _stPopConfirmOnOk :: !(B.EventM Name UiState ())
   }
 
 data Chat = Chat
@@ -193,6 +197,7 @@ data Tab
 data Popup
   = PopupChatEdit
   | PopupPrompt
+  | PopupConfirm
   deriving stock (Show, Eq, Ord, Bounded, Enum)
 
 

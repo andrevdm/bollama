@@ -107,12 +107,16 @@ runTui = do
        , _stPopChatEditName = BE.editorText C.NPopChatEditName (Just 1) ""
        , _stPopChatEditTitle = Nothing
        , _stPopChatEditModels = BL.list C.NPopChatEditModels mempty 1
-       , _stPopChatEditOnOk = (\_name _model -> pure ())
+       , _stPopChatEditOnOk = (\_ _ -> pass)
 
        , _stPopPromptEdit = BE.editorText C.NPopPromptEdit (Just 1) ""
        , _stPopPromptTitle = Nothing
        , _stPopPromptFocus = BF.focusRing [C.NPopPromptEdit, C.NDialogOk, C.NDialogCancel]
-       , _stPopPromptOnOk = \_ -> pure ()
+       , _stPopPromptOnOk = const pass
+
+       , _stPopConfirmFocus = BF.focusRing [C.NDialogOk, C.NDialogCancel]
+       , _stPopConfirmTitle = Nothing
+       , _stPopConfirmOnOk = pass
        }
 
   _finalState <- B.customMain @C.Name initialVty buildVty (Just eventChan) app initialState

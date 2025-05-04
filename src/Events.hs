@@ -62,6 +62,7 @@ handleEvent commandChan ev = do
                 -- Then the popup
                 Just C.PopupChatEdit -> handleEventPopupChatEdit commandChan ev ve
                 Just C.PopupPrompt -> handleEventPopupPrompt commandChan ev ve
+                Just C.PopupConfirm -> handleEventPopupConfirm commandChan ev ve
                 -- Otherwise the main UI gets the event
                 Nothing -> handleEventNoPopup commandChan ev ve
 
@@ -822,7 +823,6 @@ handleEventPopupPrompt _commandChan ev ve = do
 
         _ -> pass
 
-      pass
     _ -> pass
 
   where
@@ -832,6 +832,50 @@ handleEventPopupPrompt _commandChan ev ve = do
       C.stPopPromptTitle .= Nothing
       C.stPopPromptFocus %= BF.focusSetCurrent C.NPopPromptEdit
       st._stPopPromptOnOk txt
+----------------------------------------------------------------------------------------------------------------------
+
+
+
+----------------------------------------------------------------------------------------------------------------------
+-- Confirm Popup
+----------------------------------------------------------------------------------------------------------------------
+handleEventPopupConfirm :: BCh.BChan C.Command -> B.BrickEvent C.Name C.UiEvent -> Vty.Event -> B.EventM C.Name C.UiState ()
+handleEventPopupConfirm _commandChan _ev ve = do
+  st <- B.get
+  let focused = BF.focusGetCurrent st._stPopConfirmFocus
+
+  case ve of
+    Vty.EvKey k ms -> do
+      case (focused, k, ms) of
+        (_, Vty.KChar 'q', [Vty.MCtrl]) -> do
+          C.stPopup .= Nothing
+          C.stPopConfirmTitle .= Nothing
+
+        (_, Vty.KEsc, []) -> do
+          C.stPopup .= Nothing
+          C.stPopConfirmTitle .= Nothing
+
+        (_, Vty.KChar '\t', []) -> do
+          C.stPopConfirmFocus %= BF.focusNext
+
+        (_, Vty.KBackTab, []) -> do
+          C.stPopConfirmFocus %= BF.focusPrev
+
+        (Just C.NDialogOk, Vty.KEnter, []) -> do
+          C.stPopup .= Nothing
+          C.stPopConfirmTitle .= Nothing
+          C.stPopConfirmFocus %= BF.focusSetCurrent C.NDialogCancel
+          _ <- st._stPopConfirmOnOk
+          pass
+
+        (Just C.NDialogCancel, Vty.KEnter, []) -> do
+          C.stPopup .= Nothing
+          C.stPopConfirmTitle .= Nothing
+          C.stPopConfirmFocus %= BF.focusSetCurrent C.NDialogCancel
+
+        _ -> pass
+
+    _ -> pass
 ----------------------------------------------------------------------------------------------------------------------
 
 
