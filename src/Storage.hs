@@ -190,8 +190,11 @@ newStoreWrapper mkStore = do
              in
              (ss, c2, ms)) chat.chatId st.cache
 
-        -- Save the new chat to the store
-        _ <- st.store.srSaveChat chat
+        unless (Txt.isInfixOf "#" chat.chatName) $ do
+          -- Save the new chat to the store
+          _ <- st.store.srSaveChat chat
+          pass
+
         pure st { cache = cache2 }
 
 
