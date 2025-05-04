@@ -20,7 +20,6 @@ import Control.Concurrent.STM.TVar qualified as TV
 import Control.Concurrent.MVar.Strict (MVar', newMVar', modifyMVar', modifyMVar'_, withMVar')
 import Control.Exception.Safe (finally)
 import Database.SQLite.Simple qualified as Sq
-import Data.Enum qualified as Enum
 import Data.Time qualified as DT
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as Txt
@@ -47,8 +46,11 @@ newFileLogger logPath = do
     , C.lgError = \msg -> do
         now <- DT.getCurrentTime
         Txt.appendFile logPath $ show now <> " [ERROR] " <> msg
+    , C.lgCritical = \msg -> do
+        now <- DT.getCurrentTime
+        Txt.appendFile logPath $ show now <> " [CRITICAL] " <> msg
     , C.lgOnLog = pass
-    , C.lgReadLast = \i -> pure []
+    , C.lgReadLast = \_i -> pure []
     }
 
 
@@ -409,6 +411,7 @@ newSqliteStore dbPath onLog = do
          , C.lgInfo = \t -> insertLog C.LlInfo t >> onLog
          , C.lgDebug = \t -> insertLog C.LlDebug t >> onLog
          , C.lgError = \t -> insertLog C.LlError t >> onLog
+         , C.lgCritical = \t -> insertLog C.LlCritical t >> onLog
          , C.lgOnLog = onLog
          , C.lgReadLast = readLogs
          }

@@ -24,7 +24,7 @@ import Control.Debounce as Deb
 import Control.Concurrent.Async (forConcurrently_)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TVar qualified as TV
-import Control.Lens ((^.), (^?), (%=), (.=), (<>=), use, to, at, non)
+import Control.Lens ((^.), (^?), (%=), (.=), use, to, at)
 import Data.List (findIndex)
 import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as Map
@@ -258,7 +258,7 @@ handleChatUpdated chatId  = do
 
 
 handleChatStreamResponseDone :: BCh.BChan C.Command -> C.ChatId -> B.EventM C.Name C.UiState ()
-handleChatStreamResponseDone commandChan chatId = do
+handleChatStreamResponseDone _commandChan chatId = do
   -- Save to store
   store <- use C.stStore
   liftIO $ store.swStreamDone chatId
@@ -658,7 +658,7 @@ runCommands commandChan eventChan store = forever $ do
               }
 
           void . forkIO $ do
-            r <- O.chat ops
+            _r <- O.chat ops
             --TODO check response
             pass
 

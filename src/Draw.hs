@@ -28,7 +28,6 @@ import Control.Lens ((^.))
 import Data.Text qualified as Txt
 import Data.Time qualified as DT
 import Data.Map.Strict qualified as Map
-import Graphics.Vty qualified as Vty
 import Ollama qualified as O
 
 import Core qualified as C
@@ -337,9 +336,9 @@ col :: Int -> Text -> [Char] -> B.Widget n
 col width txt' attr =
   (B.vLimit 1 . B.hLimit width $ (B.withAttr (BA.attrName attr) $ B.txt txt') <+> B.fill ' ')
 
-col' :: Int -> Text -> [Char] -> B.Widget n
-col' width txt' attr =
-  (B.vLimit 1 . B.hLimit width $ B.fill ' ' <+> (B.withAttr (BA.attrName attr) $ B.txt txt'))
+--col' :: Int -> Text -> [Char] -> B.Widget n
+--col' width txt' attr =
+--  (B.vLimit 1 . B.hLimit width $ B.fill ' ' <+> (B.withAttr (BA.attrName attr) $ B.txt txt'))
 
 spinnerText :: C.UiState -> Text
 spinnerText st = fromMaybe "" $ spinnerFrames `atMay` ((st ^. C.stTick + 0) `mod` length spinnerFrames)

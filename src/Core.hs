@@ -203,6 +203,7 @@ data LogLevel
   | LlInfo
   | LlWarn
   | LlError
+  | LlCritical
   deriving stock (Show, Eq, Ord, Bounded, Enum)
 
 
@@ -211,6 +212,7 @@ data Logger = Logger
   , lgError :: !(Text -> IO ())
   , lgInfo :: !(Text -> IO ())
   , lgDebug :: !(Text -> IO ())
+  , lgCritical :: !(Text -> IO ())
   , lgOnLog :: !(IO ())
   , lgReadLast :: !(Int -> IO [LogEntry])
   }
