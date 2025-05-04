@@ -327,6 +327,14 @@ handleTabModels _commandChan _ev ve focused k ms =
             C.stAppConfig %= \cfg2 -> cfg2 { C.acModelTag = Map.insert selected txt cfg2.acModelTag }
             liftIO . Cfg.writeAppConfig =<< use C.stAppConfig
 
+    (Just C.NModelsList, Vty.KChar '*', []) -> do
+      B.gets (^?  C.stModelsList . BL.listSelectedElementL . to C.miName) >>= \case
+        Nothing -> pass
+        Just selected -> do
+          C.stAppConfig %= \cfg2 -> cfg2 { C.acDefaultModel = Just selected }
+          liftIO . Cfg.writeAppConfig =<< use C.stAppConfig
+          C.stDebug .= "Default model set to: " <> selected
+
     (Just C.NModelsList, _, _) -> do
       B.zoom C.stModelsList $ BL.handleListEventVi BL.handleListEvent ve
 
