@@ -24,6 +24,7 @@ import Control.Debounce as Deb
 import Control.Concurrent.Async (forConcurrently_)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TVar qualified as TV
+import Control.Exception.Safe (catch)
 import Control.Lens ((^.), (^?), (%=), (.=), use, to, at)
 import Data.List (findIndex)
 import Data.List.NonEmpty qualified as NE
@@ -45,14 +46,31 @@ import Utils qualified as U
 ---------------------------------------------------------------------------------------------------
 handleEvent :: BCh.BChan C.Command -> B.BrickEvent C.Name C.UiEvent -> B.EventM C.Name C.UiState ()
 handleEvent commandChan ev = do
-  case ev of
-    B.AppEvent ae -> handleAppEvent commandChan ae
-    B.VtyEvent ve -> do
-      use C.stPopup >>= \case
-        Nothing -> handleEventNoPopup commandChan ev ve
-        Just C.PopupChatEdit -> handleEventPopupChatEdit commandChan ev ve
+  catch
+    (do
+      case ev of
+        -- App events are global and must always be handled
+        B.AppEvent ae -> handleAppEvent commandChan ae
 
-    _ -> pass
+        -- Decide which handler to use
+        B.VtyEvent ve -> do
+          use C.stErrorMessage >>= \case
+            -- Error message view gets priority
+            Just _ -> do
+              handleEventErrorMessage commandChan ev ve
+            Nothing -> do
+              use C.stPopup >>= \case
+                -- Then the popup
+                Just C.PopupChatEdit -> handleEventPopupChatEdit commandChan ev ve
+                -- Otherwise the main UI gets the event
+                Nothing -> handleEventNoPopup commandChan ev ve
+
+        _ -> pass
+    )
+    (\(_ :: SomeException) -> do
+      st <- B.get
+      liftIO $ st._stLog.lgCritical $ "Exception in event handler: " <> show ev
+    )
 
 
 
@@ -160,9 +178,14 @@ handleAppEvent commandChan uev = do
 
       handleChatSelectionUpdate
 
-    C.UeLogUpdated ls -> do
+    C.UeLogUpdated ls (lvl, msg) -> do
       C.stLogList %= BL.listReplace (V.fromList ls) Nothing
       C.stLogList %= BL.listMoveToEnd
+
+      C.stDebug .= (U.logLevelName lvl) <> ":" <> msg
+
+      when (lvl == C.LlCritical) $ do
+        C.stErrorMessage .= Just msg
 
 
 handleAppEventTick :: BCh.BChan C.Command -> Int -> B.EventM C.Name C.UiState ()
@@ -671,9 +694,10 @@ runCommands commandChan eventChan store = forever $ do
       BCh.writeBChan eventChan $ C.UeGotChatsList chats overrideSelect
 
 
-    C.CmdUpdateLog -> do
+    C.CmdUpdateLog l e -> do
       ls <- store.swLog.lgReadLast 1000
-      BCh.writeBChan eventChan $ C.UeLogUpdated ls
+      BCh.writeBChan eventChan $ C.UeLogUpdated ls (l, e)
+
 
 
 
@@ -697,6 +721,31 @@ runTick eventChan = do
 
 
 
+----------------------------------------------------------------------------------------------------------------------
+-- Error Message
+----------------------------------------------------------------------------------------------------------------------
+handleEventErrorMessage :: BCh.BChan C.Command -> B.BrickEvent C.Name C.UiEvent -> Vty.Event -> B.EventM C.Name C.UiState ()
+handleEventErrorMessage _commandChan ev ve = do
+  st <- B.get
+  let focused = BF.focusGetCurrent st._stPopChatEditFocus
+
+  case ve of
+    Vty.EvKey k ms -> do
+      case (focused, k, ms) of
+        (_, Vty.KChar 'q', [Vty.MCtrl]) -> do
+          C.stErrorMessage .= Nothing
+
+        (_, Vty.KEsc, []) -> do
+          C.stErrorMessage .= Nothing
+
+        (_, Vty.KEnter, []) -> do
+          C.stErrorMessage .= Nothing
+
+        _ -> pass
+
+      pass
+    _ -> pass
+----------------------------------------------------------------------------------------------------------------------
 
 
 
@@ -729,7 +778,7 @@ handleEventPopupChatEdit _commandChan ev ve = do
         (Just C.NPopChatEditModels, _, _) -> do
           B.zoom C.stPopChatEditModels $ BL.handleListEventVi BL.handleListEvent ve
 
-        (Just C.NPopChatEditOk, Vty.KEnter, []) -> do
+        (Just C.NDialogOk, Vty.KEnter, []) -> do
           chatName <- use (C.stPopChatEditName . BE.editContentsL . to TxtZ.getText . to Txt.unlines . to Txt.strip)
           chatModel <- use (C.stPopChatEditModels . BL.listSelectedElementL . to (.miName))
           C.stPopup .= Nothing
@@ -737,7 +786,7 @@ handleEventPopupChatEdit _commandChan ev ve = do
           C.stPopChatEditFocus %= BF.focusSetCurrent C.NPopChatEditName
           liftIO $ st._stPopChatEditOnOk chatName chatModel
 
-        (Just C.NPopChatEditCancel, Vty.KEnter, []) -> do
+        (Just C.NDialogCancel, Vty.KEnter, []) -> do
           C.stPopChatEditName . BE.editContentsL %= TxtZ.clearZipper
           C.stPopChatEditFocus %= BF.focusSetCurrent C.NPopChatEditName
           C.stPopup .= Nothing
@@ -746,3 +795,8 @@ handleEventPopupChatEdit _commandChan ev ve = do
 
       pass
     _ -> pass
+----------------------------------------------------------------------------------------------------------------------
+
+
+
+

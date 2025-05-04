@@ -32,10 +32,11 @@ data Name
   --
   | NColoursList
   --
+  | NDialogOk
+  | NDialogCancel
+  --
   | NPopChatEditName
   | NPopChatEditModels
-  | NPopChatEditOk
-  | NPopChatEditCancel
   --
   | NLogList
   deriving stock (Show, Eq, Ord)
@@ -55,7 +56,7 @@ data UiEvent
   | UeChatUpdated !ChatId
   | UeChatStreamResponseDone !ChatId
   --
-  | UeLogUpdated [LogEntry]
+  | UeLogUpdated ![LogEntry] !(LogLevel, Text)
   deriving stock (Show, Eq)
 
 
@@ -65,10 +66,10 @@ data Command
   --
   | CmdRefreshPs
   --
-  | CmdRefreshChatsList (Maybe ChatId)
+  | CmdRefreshChatsList !(Maybe ChatId)
   | CmdChatSend !ChatId !ChatMessage
   --
-  | CmdUpdateLog
+  | CmdUpdateLog !LogLevel !Text
   deriving stock (Show, Eq)
 
 newtype ChatId = ChatId Text
@@ -91,6 +92,7 @@ data UiState = UiState
   , _stStore :: !StoreWrapper
   , _stLog :: !Logger
   , _stAttrMap :: !B.AttrMap
+  , _stErrorMessage :: !(Maybe Text)
 
   , _stFooterWidget :: !(Maybe (Name, UiState -> B.Widget Name))
 
@@ -213,7 +215,6 @@ data Logger = Logger
   , lgInfo :: !(Text -> IO ())
   , lgDebug :: !(Text -> IO ())
   , lgCritical :: !(Text -> IO ())
-  , lgOnLog :: !(IO ())
   , lgReadLast :: !(Int -> IO [LogEntry])
   }
 

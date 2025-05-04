@@ -12,8 +12,8 @@ footerTitle                , white                 ,  black
 infoTitle                  , cyan                  ,  -
 listAttr                   , white                 ,  grey7
 listSelectedAttr           , cornflowerBlue        ,  -
-listSelectedFocusedAttr    , black                 ,  cornflowerBlue   ,
-msgError                   , yellow                ,  blue
+listSelectedFocusedAttr    , black                 ,  cornflowerBlue
+msgError                   , red                   ,  -
 msgInfo                    , black                 ,  blue
 spinner1                   , lightSkyBlue1         ,  -
 spinner2                   , deepPink3             ,  -
@@ -31,3 +31,5 @@ popupButtonCancel          , red                   ,  black
 popupButtonCancelFocused   , black                 ,  red
 popupTableHeader           , deepPink4             ,  paleTurquoise4
 
+popupError                 , black                 ,  red3
+popupErrorText             , black                 ,  red3

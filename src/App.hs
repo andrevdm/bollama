@@ -32,17 +32,16 @@ import Utils qualified as U
 
 runTui :: IO ()
 runTui = do
+  eventChan <- BCh.newBChan 1000
+  commandChan <- BCh.newBChan @C.Command 1000
+
   dbPath' <- Cfg.getStateDir
   let dbPath = dbPath' </> "bollama.db"
-  store <- Sr.newStoreWrapper $ Sr.newSqliteStore dbPath pass
-  store.swLog.lgDebug "Starting TUI"
+  store <- Sr.newStoreWrapper $ Sr.newSqliteStore dbPath (\l e -> BCh.writeBChan commandChan $ C.CmdUpdateLog l e)
 
   -- Create a temporary chat
   -- TODO config default model
   _ <- store.swNewChat "#Temp" "" C.SsNotStreaming
-
-  eventChan <- BCh.newBChan 1000
-  commandChan <- BCh.newBChan @C.Command 1000
 
   void . forkIO $ E.runCommands commandChan eventChan store
   void . forkIO $ E.runTick eventChan
@@ -57,7 +56,7 @@ runTui = do
     , B.appStartEvent = liftIO $ do
        BCh.writeBChan commandChan C.CmdRefreshModelList
        BCh.writeBChan commandChan $ C.CmdRefreshChatsList Nothing
-       BCh.writeBChan commandChan C.CmdUpdateLog
+       BCh.writeBChan commandChan $ C.CmdUpdateLog C.LlDebug "Starting TUI"
     }
 
   let buildVty = Vty.mkVty Vty.defaultConfig
@@ -78,6 +77,7 @@ runTui = do
        , _stLog = store.swLog
        , _stAttrMap = attrMap
        , _stFooterWidget = Nothing
+       , _stErrorMessage = Nothing
 
        , _stModels = []
        , _stModelsList = BL.list C.NModelsList mempty 1
@@ -106,7 +106,7 @@ runTui = do
 
        , _stPopup = Nothing
 
-       , _stPopChatEditFocus = BF.focusRing [C.NPopChatEditName, C.NPopChatEditModels, C.NPopChatEditOk, C.NPopChatEditCancel]
+       , _stPopChatEditFocus = BF.focusRing [C.NPopChatEditName, C.NPopChatEditModels, C.NDialogOk, C.NDialogCancel]
        , _stPopChatEditName = BE.editorText C.NPopChatEditName (Just 1) ""
        , _stPopChatEditModels = BL.list C.NPopChatEditModels mempty 1
        , _stPopChatEditOnOk = (\_name _model -> pure ())

@@ -128,6 +128,12 @@ logLevelFilters =
   , [C.LlDebug, C.LlInfo, C.LlWarn, C.LlError]
   ]
 
+logLevelName :: C.LogLevel -> Text
+logLevelName C.LlDebug = "DEBUG"
+logLevelName C.LlInfo = "INFO"
+logLevelName C.LlWarn = "WARN"
+logLevelName C.LlError = "ERROR"
+logLevelName C.LlCritical = "CRITICAL"
 
 
 

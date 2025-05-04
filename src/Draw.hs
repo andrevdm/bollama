@@ -8,7 +8,6 @@
 
 module Draw
   ( drawUI
-  --, attrMap
   )
   where
 
@@ -41,16 +40,20 @@ import Utils qualified as U
 ---------------------------------------------------------------------------------------------------
 drawUI :: C.UiState -> [B.Widget C.Name]
 drawUI st =
-  [ BC.centerLayer $
-      case st._stPopup of
-        Nothing -> BW.emptyWidget
-        Just C.PopupChatEdit -> drawPopupChatEdit st
+  [ case st._stErrorMessage of
+      -- Error message wins
+      Just _ -> BC.centerLayer $ drawErrorMessage st
+      -- Otherwise draw current popup if there is one
+      Nothing ->
+        BC.centerLayer $
+          case st._stPopup of
+            Nothing -> BW.emptyWidget
+            Just C.PopupChatEdit -> drawPopupChatEdit st
 
-  , contentBlock' <=> footer st
+  -- Draw the main UI
+  , drawTabs st
+    <=> footer st
   ]
-
-  where
-    contentBlock' = drawTabs st
 ---------------------------------------------------------------------------------------------------
 
 
@@ -397,12 +400,12 @@ drawPopupChatEdit st =
     ( B.padTop (B.Pad 2) . BC.hCenter $
       let
         (attrOk, attrBorderOk) =
-          if BF.focusGetCurrent st._stPopChatEditFocus == Just C.NPopChatEditOk
+          if BF.focusGetCurrent st._stPopChatEditFocus == Just C.NDialogOk
           then (B.attrName "popupButtonOkFocused", BBS.unicodeBold)
           else (B.attrName "popupButtonOk", BBS.unicode)
 
         (attrCancel, attrBorderCancel) =
-          if BF.focusGetCurrent st._stPopChatEditFocus == Just C.NPopChatEditCancel
+          if BF.focusGetCurrent st._stPopChatEditFocus == Just C.NDialogCancel
           then (B.attrName "popupButtonCancelFocused", BBS.unicodeBold)
           else (B.attrName "popupButtonCancel", BBS.unicode)
       in
@@ -434,6 +437,34 @@ drawPopupChatEdit st =
         , col 40 cs ""
         , col 50 usr ""
         ]
+---------------------------------------------------------------------------------------------------
+
+
+
+
+
+---------------------------------------------------------------------------------------------------
+-- Error message
+---------------------------------------------------------------------------------------------------
+drawErrorMessage :: C.UiState -> B.Widget C.Name
+drawErrorMessage st =
+  B.vLimit 25 $
+  B.hLimit 180 $
+  borderWithLabel' True "Error" $
+  B.withAttr (B.attrName "popupError") $
+  B.padAll 1 $
+  ( (B.withAttr (B.attrName "popupErrorText") $ B.txtWrap (fromMaybe "??" st._stErrorMessage ))
+    <=> B.fill ' '
+    <=>
+    ( B.padTop (B.Pad 2) . BC.hCenter $
+      let
+        (attrOk, attrBorderOk) =
+          (B.attrName "popupButtonOkFocused", BBS.unicodeBold)
+      in
+      ( B.withBorderStyle attrBorderOk (BB.border (B.withAttr attrOk . B.vLimit 1 . B.hLimit 8 . BC.hCenter $ B.txt "Ok"))
+      )
+    )
+  )
 ---------------------------------------------------------------------------------------------------
 
 

@@ -18,7 +18,7 @@ import           Verset
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TVar qualified as TV
 import Control.Concurrent.MVar.Strict (MVar', newMVar', modifyMVar', modifyMVar'_, withMVar')
-import Control.Exception.Safe (finally)
+import Control.Exception.Safe (finally, catch)
 import Database.SQLite.Simple qualified as Sq
 import Data.Time qualified as DT
 import Data.Map.Strict qualified as Map
@@ -26,6 +26,7 @@ import Data.Text qualified as Txt
 import Data.Text.IO qualified as Txt
 import Ollama qualified as O
 import Text.RawString.QQ (r)
+import Text.Pretty.Simple (pPrint)
 
 import Core qualified as C
 import Utils qualified as U
@@ -49,7 +50,6 @@ newFileLogger logPath = do
     , C.lgCritical = \msg -> do
         now <- DT.getCurrentTime
         Txt.appendFile logPath $ show now <> " [CRITICAL] " <> msg
-    , C.lgOnLog = pass
     , C.lgReadLast = \_i -> pure []
     }
 
@@ -320,7 +320,7 @@ newStoreWrapper mkStore = do
 
 
 
-newSqliteStore :: FilePath -> IO () -> IO (C.Store, C.Logger)
+newSqliteStore :: FilePath -> (C.LogLevel -> Text -> IO ()) -> IO (C.Store, C.Logger)
 newSqliteStore dbPath onLog = do
   _ <- initDb
 
@@ -407,12 +407,11 @@ newSqliteStore dbPath onLog = do
 
   let logger =
        C.Logger
-         { C.lgWarn = \t -> insertLog C.LlWarn t >> onLog
-         , C.lgInfo = \t -> insertLog C.LlInfo t >> onLog
-         , C.lgDebug = \t -> insertLog C.LlDebug t >> onLog
-         , C.lgError = \t -> insertLog C.LlError t >> onLog
-         , C.lgCritical = \t -> insertLog C.LlCritical t >> onLog
-         , C.lgOnLog = onLog
+         { C.lgWarn = \t -> insertLog C.LlWarn t >> onLog C.LlWarn t
+         , C.lgInfo = \t -> insertLog C.LlInfo t >> onLog C.LlInfo t
+         , C.lgDebug = \t -> insertLog C.LlDebug t >> onLog C.LlDebug t
+         , C.lgError = \t -> insertLog C.LlError t >> onLog C.LlError t
+         , C.lgCritical = \t -> insertLog C.LlCritical t >> onLog C.LlCritical t
          , C.lgReadLast = readLogs
          }
 
@@ -435,10 +434,18 @@ newSqliteStore dbPath onLog = do
 
 
     insertLog level' msg = do
-      let level = fromEnum level'
-      now <- DT.getCurrentTime
-      withConn_ $ \conn -> do
-        Sq.execute conn "INSERT INTO log (level, createdAt, msg) VALUES (?, ?, ?)" (level, now, msg)
+      catch
+        (do
+          let level = fromEnum level'
+          now <- DT.getCurrentTime
+          withConn_ $ \conn -> do
+            Sq.execute conn "INSERT INTO log (level, createdAt, msg) VALUES (?, ?, ?)" (level, now, msg)
+        )
+        (\(e :: SomeException) -> do
+          onLog C.LlCritical $ "Failed to insert log: \b" <> show e <> "\n\nOriginal log:\n" <> msg
+          pPrint e
+          pure ()
+        )
 
 
     readLogs :: Int -> IO [C.LogEntry]
