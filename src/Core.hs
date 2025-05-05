@@ -27,8 +27,8 @@ data Name
   | NListPs
   --
   | NChatInputEdit
-  | NChatMsgList
   | NChatsList
+  | NChatScroll
   --
   | NColoursList
   --
@@ -41,6 +41,8 @@ data Name
   | NPopPromptEdit
   --
   | NLogList
+  --
+  | VScrollClick B.ClickableScrollbarElement Name
   deriving stock (Show, Eq, Ord)
 
 
@@ -110,7 +112,7 @@ data UiState = UiState
   , _stFocusChat :: !(BF.FocusRing Name)
   , _stChatInput :: !(BE.Editor Text Name)
   , _stChatCurrent :: !(Maybe (Chat, StreamingState))
-  , _stChatMsgList :: !(BL.List Name ChatMessage)
+  , _stChatMsgs :: ![ChatMessage]
   , _stChatsList :: !(BL.List Name Chat)
 
   , _stColoursList :: !(BL.List Name Text)

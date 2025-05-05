@@ -27,6 +27,7 @@ import Control.Lens ((^.))
 import Data.Text qualified as Txt
 import Data.Time qualified as DT
 import Data.Map.Strict qualified as Map
+import Data.Vector qualified as V
 import Ollama qualified as O
 
 import Core qualified as C
@@ -219,15 +220,18 @@ drawChatInner st =
     drawChatMainRight =
       let
         inputEditSelected = BF.focusGetCurrent st._stFocusChat == Just C.NChatInputEdit
-        msgListSelected = BF.focusGetCurrent st._stFocusChat == Just C.NChatMsgList
         modelName = fromMaybe "" $ st._stChatCurrent <&> (C.chatModel) . fst
       in
-      borderWithLabel' msgListSelected "Conversation"
+      borderWithLabel' False "Conversation"
       ( (B.withAttr (B.attrName "colHeader") $ B.txt "Model: ") <+> (B.txt modelName)
         <=>
         B.txt " "
         <=>
-        BL.renderListWithIndex (renderChatListItem msgListSelected) msgListSelected (st._stChatMsgList)
+        ( let ws = zip [0..] st._stChatMsgs <&> \(ix, msg) -> renderChatMsgItem False ix False msg
+          in
+          B.withClickableVScrollBars C.VScrollClick . B.withVScrollBarHandles . B.withVScrollBars B.OnRight $
+          B.viewport C.NChatScroll B.Vertical . B.vBox $ ws
+        )
       )
       <=>
       B.vLimit 8
@@ -241,8 +245,8 @@ drawChatInner st =
       )
 
 
-    renderChatListItem :: Bool -> Int -> Bool -> C.ChatMessage -> B.Widget C.Name
-    renderChatListItem listSelected ix itemSelected msg =
+    renderChatMsgItem :: Bool -> Int -> Bool -> C.ChatMessage -> B.Widget C.Name
+    renderChatMsgItem listSelected ix itemSelected msg =
       let attrName =
            if listSelected && itemSelected
            then "chatMsgSelected"
@@ -253,7 +257,7 @@ drawChatInner st =
       B.withAttr (B.attrName attrName) $
       B.hBox
         [ col 15 (show msg.msgRole) attrName
-        , B.txtWrap msg.msgText
+        , B.vLimit 50 $ B.txtWrap msg.msgText
         ]
 
 

@@ -14,9 +14,10 @@ module Events
 
 import           Verset
 
+import Brick qualified as B
 import Brick.BChan qualified as BCh
 import Brick.Focus qualified as BF
-import Brick qualified as B
+import Brick.Main qualified as B
 import Brick.Widgets.Edit qualified as BE
 import Brick.Widgets.List qualified as BL
 import Control.Debounce as Deb
@@ -50,6 +51,16 @@ handleEvent commandChan ev = do
       case ev of
         -- App events are global and must always be handled
         B.AppEvent ae -> handleAppEvent commandChan ae
+
+        -- Handle mouse events for the scrollbar
+        B.MouseDown (C.VScrollClick se C.NChatScroll) _ _ _ -> do
+          case  se of
+            B.SBHandleBefore -> B.vScrollPage (B.viewportScroll C.NChatScroll) B.Up
+            B.SBHandleAfter -> B.vScrollPage (B.viewportScroll C.NChatScroll) B.Down
+            B.SBTroughBefore -> B.vScrollPage (B.viewportScroll C.NChatScroll) B.Up
+            B.SBTroughAfter -> B.vScrollPage (B.viewportScroll C.NChatScroll) B.Down
+            _ -> pass
+
 
         -- Decide which handler to use
         B.VtyEvent ve -> do
@@ -265,7 +276,8 @@ handleChatUpdated chatId  = do
         Just (_, _, ss, ms') -> pure (ms', ss)
 
       C.stChatCurrent .= Just (currentChat, streamingState)
-      C.stChatMsgList %= BL.listMoveToEnd . BL.listReplace (V.fromList . reverse $ ms) Nothing
+      C.stChatMsgs .= reverse ms
+      B.vScrollToEnd (B.viewportScroll C.NChatScroll)
 
     _ -> do
       pass
@@ -427,6 +439,21 @@ handleTabChat commandChan store ev ve focused k ms =
             liftIO $ store.swSaveChat chat2
             C.stChatCurrent .= Just (chat2, ss)
 
+    (_, Vty.KPageUp, []) -> do
+      C.stDebug .= "PageUp"
+      B.vScrollPage (B.viewportScroll C.NChatScroll) B.Up
+
+    (_, Vty.KPageUp, [Vty.MCtrl]) -> do
+      C.stDebug .= "PageUp"
+      B.vScrollToBeginning (B.viewportScroll C.NChatScroll)
+
+    (_, Vty.KPageDown, []) -> do
+      C.stDebug .= "PageDown"
+      B.vScrollPage (B.viewportScroll C.NChatScroll) B.Down
+
+    (_, Vty.KPageDown, [Vty.MCtrl]) -> do
+      C.stDebug .= "PageDown"
+      B.vScrollToEnd (B.viewportScroll C.NChatScroll)
 
     (Just C.NChatInputEdit, Vty.KChar 'r', [Vty.MCtrl]) -> do
       runInput
@@ -438,12 +465,8 @@ handleTabChat commandChan store ev ve focused k ms =
       runInput
 
     (Just C.NChatInputEdit, _, _) -> do
-      --C.stDebug .= show (k, ms)
+      C.stDebug .= show (k, ms)
       B.zoom C.stChatInput $ BE.handleEditorEvent ev
-
-    (Just C.NChatMsgList, _, _) -> do
-      --C.stDebug .= show (k, ms)
-      B.zoom C.stChatMsgList $ BL.handleListEventVi BL.handleListEvent ve
 
     (Just C.NChatsList, Vty.KChar '*', _) -> do
       use (C.stChatsList . to BL.listSelectedElement) >>= \case
@@ -517,7 +540,7 @@ handleChatSelectionUpdate = do
     -- Nothing selected, clear current
     (Nothing, _) -> do
       C.stChatCurrent .= Nothing
-      C.stChatMsgList %= BL.listClear
+      C.stChatMsgs .= []
       _ <- liftIO $ store.swSetCurrent Nothing
       pass
 
@@ -529,7 +552,7 @@ handleChatSelectionUpdate = do
 
         Nothing -> do
           C.stChatCurrent .= Nothing
-          C.stChatMsgList %= BL.listClear
+          C.stChatMsgs .= []
 ---------------------------------------------------------------------------------------------------
 
 

@@ -90,10 +90,10 @@ runTui = do
        , _stFocusPs = BF.focusRing [C.NListPs]
        , _stLoadingPs = True
 
-       , _stFocusChat = BF.focusRing [C.NChatInputEdit, C.NChatsList, C.NChatMsgList]
+       , _stFocusChat = BF.focusRing [C.NChatInputEdit, C.NChatsList]
        , _stChatInput = BE.editorText C.NChatInputEdit (Just 5) ""
        , _stChatCurrent = Nothing
-       , _stChatMsgList = BL.list C.NChatMsgList mempty 1
+       , _stChatMsgs = []
        , _stChatsList = BL.list C.NChatsList mempty 1
 
        , _stColoursList = BL.list C.NColoursList (V.fromList . sort $ fst <$> U.knownColours) 1
