@@ -9,3 +9,4 @@
  - log filtering?
  - help pages + README
  - scroll bar clicking
+ - toggle show thinking

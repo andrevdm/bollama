@@ -17,6 +17,7 @@ import Brick.Widgets.ProgressBar qualified as BP
 import Brick.Widgets.Edit qualified as BE
 import Brick.Widgets.List qualified as BL
 import Data.Map.Strict qualified as Map
+import Data.List (findIndex)
 import Data.Text.IO qualified as Txt
 import Data.Text qualified as Txt
 import Data.UUID.V4 qualified as UU
@@ -134,6 +135,18 @@ logLevelName C.LlInfo = "INFO"
 logLevelName C.LlWarn = "WARN"
 logLevelName C.LlError = "ERROR"
 logLevelName C.LlCritical = "CRITICAL"
+
+
+
+removeThink :: Text -> Text
+removeThink str =
+  if not (Txt.isPrefixOf "<think>" str)
+  then str
+  else
+    let ls = drop 1 . Txt.lines $ str in
+    case findIndex (== "</think>") ls of
+      Nothing -> str
+      Just i -> Txt.strip . Txt.unlines . drop (i + 1) $ ls
 
 
 attrMapFromFile :: FilePath -> IO ([Text], BA.AttrMap)

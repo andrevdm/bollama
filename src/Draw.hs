@@ -248,16 +248,16 @@ drawChatInner st =
     renderChatMsgItem :: Bool -> Int -> Bool -> C.ChatMessage -> B.Widget C.Name
     renderChatMsgItem listSelected ix itemSelected msg =
       let attrName =
-           if listSelected && itemSelected
-           then "chatMsgSelected"
-           else
-             if ix `mod` 2 == 0 then "chatMsgA" else "chatMsgB" in
-
+            if listSelected && itemSelected
+            then "chatMsgSelected"
+            else if ix `mod` 2 == 0 then "chatMsgA" else "chatMsgB"
+          msgTxt = U.removeThink msg.msgText
+      in
       B.padBottom (B.Pad 1) $
       B.withAttr (B.attrName attrName) $
       B.hBox
         [ col 15 (show msg.msgRole) attrName
-        , B.vLimit 50 $ B.txtWrap msg.msgText
+        , B.vLimit 50 $ B.txtWrap msgTxt
         ]
 
 
