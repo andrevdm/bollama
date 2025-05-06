@@ -107,33 +107,33 @@ defaultTheme = [r|
     chatMsgB                   , black                 ,  tan
     chatMsgSelected            , black                 ,  -
     chatDefaultMarker          , yellow                ,  -
-    colHeader                  , deepSkyBlue2          ,  -               , bold
+    colHeader                  , deep_sky_blue2        ,  -               , bold
     editAttr                   , black                 ,  grey
-    editFocusedAttr            , black                 ,  skyBlue
+    editFocusedAttr            , black                 ,  sky_blue1
     footer                     , black                 ,  grey
     footerMessage              , black                 ,  grey
     footerTitle                , white                 ,  black
     infoTitle                  , cyan                  ,  -
     listAttr                   , white                 ,  grey7
-    listSelectedAttr           , cornflowerBlue        ,  -
-    listSelectedFocusedAttr    , black                 ,  cornflowerBlue
+    listSelectedAttr           , cornflower_blue       ,  -
+    listSelectedFocusedAttr    , black                 ,  cornflower_blue
     msgError                   , red                   ,  -
     msgInfo                    , black                 ,  blue
-    spinner1                   , lightSkyBlue1         ,  -
-    spinner2                   , deepPink3             ,  -
+    spinner1                   , light_sky_blue1       ,  -
+    spinner2                   , deep_pink3            ,  -
     tabFooter                  , black                 ,  grey
-    tabSelected                , black                 ,  cornflowerBlue
+    tabSelected                , black                 ,  cornflower_blue
     tabUnselected              , black                 ,  grey
     time                       , yellow                ,  -
     version                    , yellow                ,  grey
 
-    popup                      , black                 ,  paleTurquoise4
-    popupHeader                , blue3                 ,  paleTurquoise4
+    popup                      , black                 ,  pale_turquoise4
+    popupHeader                , blue3                 ,  pale_turquoise4
     popupButtonOk              , green                 ,  black
     popupButtonOkFocused       , black                 ,  green
     popupButtonCancel          , red                   ,  black
     popupButtonCancelFocused   , black                 ,  red
-    popupTableHeader           , deepPink4             ,  paleTurquoise4
+    popupTableHeader           , deep_pink4            ,  pale_turquoise4
 
     popupError                 , black                 ,  red3
     popupErrorText             , black                 ,  red3

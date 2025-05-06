@@ -17,6 +17,7 @@ import Brick qualified as B
 import Brick.Widgets.Edit qualified as BE
 import Brick.Widgets.List qualified as BL
 import Control.Exception.Safe (catch)
+import Data.Text qualified as Txt
 import Data.Time qualified as DT
 import Data.Vector qualified as V
 import Graphics.Vty qualified as Vty
@@ -48,7 +49,10 @@ runTui = do
   void . forkIO . catchEx store "commands channel" $ E.runCommands commandChan eventChan store
   void . forkIO . catchEx store "events channel" $ E.runTick eventChan
 
-  attrMap <- readAttrMap
+  (attrErrors, attrMap) <- Cfg.loadTheme
+
+  when (not . null $ attrErrors) $
+    store.swLog.lgWarn $ "Theme load errors: \n" <> Txt.unlines (attrErrors <&> ("  " <>))
 
   let app = B.App {
       B.appDraw = D.drawUI
@@ -124,13 +128,6 @@ runTui = do
   pass
 
   where
-    readAttrMap :: IO BA.AttrMap
-    readAttrMap = do
-      (_es, m) <- Cfg.loadTheme
-      print _es
-      pure m
-
-
     catchEx :: C.StoreWrapper -> Text -> IO () -> IO ()
     catchEx store n action = do
       catch
