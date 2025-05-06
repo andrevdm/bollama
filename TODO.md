@@ -3,10 +3,11 @@
  - key so sort by name/param size in model list and model popup
  - arg to select initial tab, and maybe chat too
  - cancel current chat, offer to kill model. Allow next question, somehow need to discard any streamed input for that stream id
- - update chat list e.g. on name edit
- - popup stack? probably not needed
+ - popup stack? Probably not needed
  - evict timer + test eviction
  - log filtering?
  - help pages + README
  - scroll bar clicking
  - toggle show thinking
+ - model update, delete
+ - export chat to JSON and/or markdown

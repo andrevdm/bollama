@@ -53,7 +53,7 @@ emptyAppConfig :: C.AppConfig
 emptyAppConfig = C.AppConfig
   { acModelTag = mempty
   , acDefaultModel = Just mempty
-  , acDefaultChatName = Just mempty
+  , acDefaultChat = Just mempty
   }
 
 

@@ -17,7 +17,6 @@ import           Verset
 import Brick qualified as B
 import Brick.BChan qualified as BCh
 import Brick.Focus qualified as BF
-import Brick.Main qualified as B
 import Brick.Widgets.Edit qualified as BE
 import Brick.Widgets.List qualified as BL
 import Control.Debounce as Deb
@@ -435,10 +434,12 @@ handleTabChat commandChan store ev ve focused k ms =
           C.stPopChatEditTitle .= Just "Edit chat"
           C.stPopChatEditFocus %= BF.focusSetCurrent C.NPopChatEditName
           C.stPopChatEditName . BE.editContentsL .= TxtZ.textZipper [chat.chatName] Nothing
+          C.stPopChatEditModels %= BL.listFindBy (\i -> i.miName == chat.chatModel)
           C.stPopChatEditOnOk .= \name model -> do
             let chat2 = chat { C.chatName = name, C.chatModel = model }
             liftIO $ store.swSaveChat chat2
             C.stChatCurrent .= Just (chat2, ss)
+            liftIO . BCh.writeBChan commandChan $ C.CmdRefreshChatsList (Just . Right $ chat.chatId)
 
     (_, Vty.KPageUp, []) -> do
       C.stDebug .= "PageUp"
@@ -474,7 +475,7 @@ handleTabChat commandChan store ev ve focused k ms =
         Nothing -> pass
         Just (_, chat) -> do
           C.stDebug .= "Default chat set: " <> chat.chatName
-          C.stAppConfig %= \cfg2 -> cfg2 { C.acDefaultChatName = Just chat.chatName }
+          C.stAppConfig %= \cfg2 -> cfg2 { C.acDefaultChat = Just (C.unChatId chat.chatId) }
           liftIO . Cfg.writeAppConfig =<< use C.stAppConfig
 
     (Just C.NChatsList, _, _) -> do
@@ -726,7 +727,7 @@ runCommands commandChan eventChan store = forever $ do
            case overrideSelect1 of
              Nothing -> Nothing
              Just (Right chatId) -> Just chatId
-             Just (Left chatName) -> C.chatId <$> find (\c -> c.chatName == chatName) chats
+             Just (Left chatIdent) -> C.chatId <$> find (\c -> (C.unChatId c.chatId) == chatIdent || c.chatName == chatIdent) chats
 
       BCh.writeBChan eventChan $ C.UeGotChatsList chats overrideSelect
 

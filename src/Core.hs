@@ -85,6 +85,8 @@ newtype ChatMessageId = ChatMessageId Text
 newtype MessageId = MessageId Text
   deriving stock (Show, Eq, Ord, Generic)
 
+unChatId :: ChatId -> Text
+unChatId (ChatId t) = t
 
 data UiState = UiState
   { _stTick :: !Int
@@ -206,7 +208,7 @@ data Popup
 data AppConfig = AppConfig
   { acModelTag :: !(Map Text Text)
   , acDefaultModel :: !(Maybe Text)
-  , acDefaultChatName :: !(Maybe Text)
+  , acDefaultChat :: !(Maybe Text)
   } deriving (Show, Eq, Generic)
 
 data StreamingState
@@ -244,7 +246,7 @@ instance Ae.FromJSON AppConfig where
   parseJSON = Ae.withObject "AppConfig" $ \o -> do
     acModelTag <- o Ae..:? "model_tag"
     acDefaultModel <- o Ae..:? "default_model"
-    acDefaultChatName <- o Ae..:? "default_chat_name"
+    acDefaultChatName <- o Ae..:? "default_chat"
     pure $ AppConfig (fromMaybe mempty acModelTag) acDefaultModel acDefaultChatName
 
 instance Ae.ToJSON AppConfig where

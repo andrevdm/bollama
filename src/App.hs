@@ -61,7 +61,7 @@ runTui = do
     , B.appAttrMap = C._stAttrMap
     , B.appStartEvent = liftIO $ do
        BCh.writeBChan commandChan C.CmdRefreshModelList
-       BCh.writeBChan commandChan $ C.CmdRefreshChatsList (Left <$> cfg.acDefaultChatName)
+       BCh.writeBChan commandChan $ C.CmdRefreshChatsList (Left <$> cfg.acDefaultChat)
     }
 
   let buildVty = Vty.mkVty Vty.defaultConfig
