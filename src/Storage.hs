@@ -341,6 +341,8 @@ newStoreWrapper mkStore = do
 newSqliteStore :: FilePath -> (C.LogLevel -> Text -> IO ()) -> IO (C.Store, C.Logger)
 newSqliteStore dbPath onLog = do
   _ <- initDb
+  now <- DT.getCurrentTime
+  let sessionId = Txt.pack $ DT.formatTime DT.defaultTimeLocale "%Y-%m-%d %H:%M:%S" now
 
   withConn_ $ \conn -> do
     -- TODO configure expires
@@ -425,12 +427,12 @@ newSqliteStore dbPath onLog = do
 
   let logger =
        C.Logger
-         { C.lgWarn = \t -> insertLog C.LlWarn t >> onLog C.LlWarn t
-         , C.lgInfo = \t -> insertLog C.LlInfo t >> onLog C.LlInfo t
-         , C.lgDebug = \t -> insertLog C.LlDebug t >> onLog C.LlDebug t
-         , C.lgError = \t -> insertLog C.LlError t >> onLog C.LlError t
-         , C.lgCritical = \t -> insertLog C.LlCritical t >> onLog C.LlCritical t
-         , C.lgReadLast = readLogs
+         { C.lgWarn = \t -> insertLog sessionId C.LlWarn t >> onLog C.LlWarn t
+         , C.lgInfo = \t -> insertLog sessionId C.LlInfo t >> onLog C.LlInfo t
+         , C.lgDebug = \t -> insertLog sessionId C.LlDebug t >> onLog C.LlDebug t
+         , C.lgError = \t -> insertLog sessionId C.LlError t >> onLog C.LlError t
+         , C.lgCritical = \t -> insertLog sessionId C.LlCritical t >> onLog C.LlCritical t
+         , C.lgReadLast = readLogs sessionId
          }
 
 
@@ -451,13 +453,13 @@ newSqliteStore dbPath onLog = do
         traverse (Sq.execute_ conn) createScripts
 
 
-    insertLog level' msg = do
+    insertLog sessionId level' msg = do
       catch
         (do
           let level = fromEnum level'
           now <- DT.getCurrentTime
           withConn_ $ \conn -> do
-            Sq.execute conn "INSERT INTO log (level, createdAt, msg) VALUES (?, ?, ?)" (level, now, msg)
+            Sq.execute conn "INSERT INTO log (sessionId, level, createdAt, msg) VALUES (?, ?, ?, ?)" (sessionId, level, now, msg)
         )
         (\(e :: SomeException) -> do
           onLog C.LlCritical $ "Failed to insert log: \b" <> show e <> "\n\nOriginal log:\n" <> msg
@@ -466,11 +468,11 @@ newSqliteStore dbPath onLog = do
         )
 
 
-    readLogs :: Int -> IO [C.LogEntry]
-    readLogs n = do
+    readLogs :: Text -> Int -> IO [C.LogEntry]
+    readLogs sessionId n = do
       withConn $ \conn -> do
         logs :: [(Int, DT.UTCTime, Text)] <-
-          Sq.query conn "SELECT level, createdAt, msg FROM log ORDER BY createdAt DESC LIMIT ?" (Sq.Only n)
+          Sq.query conn "SELECT level, createdAt, msg FROM log where sessionId = ? ORDER BY createdAt DESC LIMIT ?" (sessionId, n)
 
         pure $ logs <&> \(level, createdAt, msg) ->
           C.LogEntry
@@ -513,6 +515,7 @@ newSqliteStore dbPath onLog = do
 
      , [r| CREATE TABLE IF NOT EXISTS log (
              id         INTEGER   PRIMARY KEY AUTOINCREMENT,
+             sessionId  TEXT      NOT NULL,
              level      INTEGER   NOT NULL,
              createdAt  DATETIME  NOT NULL,
              msg        TEXT      NOT NULL
@@ -522,4 +525,5 @@ newSqliteStore dbPath onLog = do
      , "CREATE INDEX IF NOT EXISTS idx_chat_message_chat_id ON chatMessage(chatId);"
      , "CREATE INDEX IF NOT EXISTS idx_chat_message_created_at ON chatMessage(createdAt);"
      , "CREATE INDEX IF NOT EXISTS ix_log_created_at ON log(createdAt);"
+     , "CREATE INDEX IF NOT EXISTS ix_log_created_at ON log(sessionId);"
      ]

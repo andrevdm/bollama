@@ -10,7 +10,6 @@ module App where
 
 import           Verset
 
-import Brick.AttrMap qualified as BA
 import Brick.BChan qualified as BCh
 import Brick.Focus qualified as BF
 import Brick qualified as B
@@ -42,6 +41,7 @@ runTui = do
   dbPath' <- Cfg.getStateDir
   let dbPath = dbPath' </> "bollama.db"
   store <- Sr.newStoreWrapper $ Sr.newSqliteStore dbPath (\l e -> BCh.writeBChan commandChan $ C.CmdUpdateLog l e)
+  store.swLog.lgInfo $ "Starting Bollama v" <> Cfg.verText
 
   -- Create a temporary chat
   _ <- store.swNewChat "#Temp" (Cfg.defaultModel cfg) C.SsNotStreaming
@@ -62,7 +62,6 @@ runTui = do
     , B.appStartEvent = liftIO $ do
        BCh.writeBChan commandChan C.CmdRefreshModelList
        BCh.writeBChan commandChan $ C.CmdRefreshChatsList (Left <$> cfg.acDefaultChatName)
-       BCh.writeBChan commandChan $ C.CmdUpdateLog C.LlDebug "Starting TUI"
     }
 
   let buildVty = Vty.mkVty Vty.defaultConfig
