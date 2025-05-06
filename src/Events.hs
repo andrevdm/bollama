@@ -26,6 +26,7 @@ import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TVar qualified as TV
 import Control.Exception.Safe (catch)
 import Control.Lens ((^.), (^?), (%=), (.=), use, to, at)
+import Data.Aeson qualified as Ae
 import Data.List (findIndex)
 import Data.List.NonEmpty qualified as NE
 import Data.Map.Strict qualified as Map
@@ -489,19 +490,25 @@ handleTabChat commandChan store ev ve focused k ms =
           txt <- use (C.stChatInput . BE.editContentsL . to TxtZ.getText . to Txt.unlines . to Txt.strip)
 
           unless (Txt.null txt) $ do
-            isValidModel chat.chatModel >>= \case
-              True -> do
+            findModel chat.chatModel >>= \case
+              Just model -> do
                 liftIO (store.swAddMessage cid O.User C.SsStreaming chat.chatModel txt) >>= \case
                   Right newMsg -> do
                     C.stChatCurrent .= Just (chat, C.SsStreaming)
                     C.stChatInput . BE.editContentsL %= TxtZ.clearZipper
                     handleChatUpdated cid
-                    liftIO . BCh.writeBChan commandChan $ C.CmdChatSend cid newMsg
+
+                    let ctxLen =
+                         case model.miShow of
+                           Nothing -> Nothing
+                           Just ms' -> ms'.modelInfo.llamaContextLength
+
+                    liftIO . BCh.writeBChan commandChan $ C.CmdChatSend cid newMsg (fromMaybe 2048 ctxLen)
 
                   Left err -> do
                     liftIO . store.swLog.lgError $ "Error sending message: " <> err
 
-              False -> do
+              Nothing -> do
                 C.stDebug .= "Invalid model name: " <> chat.chatModel
                 C.stPopup .= Just C.PopupChatEdit
                 C.stPopChatEditFocus %= BF.focusSetCurrent C.NPopChatEditModels
@@ -520,9 +527,9 @@ handleTabChat commandChan store ev ve focused k ms =
           liftIO $ store.swLog.lgError "No current chat"
 
 
-    isValidModel n = do
+    findModel n = do
       models <- use C.stModels
-      pure $ n `elem` (models <&> (.miName))
+      pure $ find (\m -> m.miName == n) models
 
 
 
@@ -655,7 +662,7 @@ runCommands commandChan eventChan store = forever $ do
       BCh.writeBChan eventChan . C.UePsList $ ps
 
 
-    C.CmdChatSend chatId msg -> do
+    C.CmdChatSend chatId msg ctxLen -> do
       store.swGetChat chatId >>= \case
         Just (chat, hist1, _streamState) -> do
           debouncedUpdateUi <- Deb.mkDebounce Deb.defaultDebounceSettings
@@ -679,7 +686,9 @@ runCommands commandChan eventChan store = forever $ do
               , keepAlive = Just "5m"
               , hostUrl = Just C.ollamaUrl
               , responseTimeOut = Nothing
-              , options = Nothing
+              , options = Just . Ae.object $
+                [ ("num_ctx", Ae.Number . fromIntegral $ ctxLen)
+                ]
               , stream = Just (
                 \cr -> do
                   case cr.message of

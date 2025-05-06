@@ -71,7 +71,7 @@ data Command
   | CmdRefreshPs
   --
   | CmdRefreshChatsList !(Maybe (Either Text ChatId))
-  | CmdChatSend !ChatId !ChatMessage
+  | CmdChatSend !ChatId !ChatMessage !Int
   --
   | CmdUpdateLog !LogLevel !Text
   deriving stock (Show, Eq)
