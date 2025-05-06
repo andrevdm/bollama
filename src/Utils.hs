@@ -24,6 +24,7 @@ import Data.UUID.V4 qualified as UU
 import Graphics.Vty qualified as Vty
 import Ollama qualified as O
 import Text.Printf (printf)
+import Text.RawString.QQ (r)
 
 
 import Core qualified as C
@@ -154,9 +155,32 @@ attrMapFromFile file = do
   txt <- Txt.readFile file
   attrMapFromText txt
 
-
 attrMapFromText :: Text -> IO ([Text], BA.AttrMap)
-attrMapFromText txt = do
+attrMapFromText t = do
+  -- Read the default theme
+  (_, defTheme) <- attrMapFromText' defaultTheme
+  -- Read user theme
+  (errors, attrsUser) <- attrMapFromText' t
+
+  let
+      -- Add all known colours as _fg_ and _bg_ attributes
+      knownAsFs = knownColours <&> \ (n, c) -> (B.attrName . Txt.unpack $ "_fg_" <> n, B.fg c)
+      knownAsBs = knownColours <&> \ (n, c) -> (B.attrName . Txt.unpack $ "_bg_" <> n, B.bg c)
+
+      -- Combine parse attributes, with defaults and colours
+      attrs = Map.toList $ Map.unions [ Map.fromList attrsUser
+                                      , Map.fromList defTheme
+                                      , Map.fromList $ knownAsBs <> knownAsFs
+                                      ]
+
+      defAttr = snd <$> find (\(n, _) -> n == B.attrName "default") attrs
+      attrMap = BA.attrMap (fromMaybe Vty.defAttr defAttr) attrs
+
+  pure (errors, attrMap)
+
+
+attrMapFromText' :: Text -> IO ([Text], [(B.AttrName, Vty.Attr)])
+attrMapFromText' txt = do
   let ls1 = Txt.lines txt
       ls2 = Txt.strip <$> ls1
       ls3 = filter (not . Txt.isInfixOf "--") ls2
@@ -167,18 +191,7 @@ attrMapFromText txt = do
       lines = parseLine clrs <$> lcs
       errors = lefts lines
       attrs1 = rights lines
-
-      -- Add all known colours as _fg_ and _bg_ attributes
-      knownAsFs = knownColours <&> \ (n, c) -> (B.attrName . Txt.unpack $ "_fg_" <> n, B.fg c)
-      knownAsBs = knownColours <&> \ (n, c) -> (B.attrName . Txt.unpack $ "_bg_" <> n, B.bg c)
-
-      -- Combine with user defined attributes, prefer user defined
-      attrs = Map.toList $ Map.union (Map.fromList attrs1) (Map.fromList $ knownAsBs <> knownAsFs)
-
-      -- Set the default attribute if it exists
-      def = snd <$> find (\(n, _) -> n == B.attrName "default") attrs
-      attrMap = BA.attrMap (fromMaybe Vty.defAttr def) attrs
-  pure (errors, attrMap)
+  pure (errors, attrs1)
 
   where
     parseLine :: Map Text Vty.Color -> [Text] -> Either Text (BA.AttrName, Vty.Attr)
@@ -251,6 +264,47 @@ attrMapFromText txt = do
     readAttrName "progressCompleteAttr" = BP.progressCompleteAttr
     readAttrName "progressIncompleteAttr" = BP.progressCompleteAttr
     readAttrName t = BA.attrName . Txt.unpack $ t
+
+
+defaultTheme :: Text
+defaultTheme = [r|
+    --default                    , red                   ,  blue
+    borderSelectedLabel        , violet                ,  -
+    chatMsgA                   , black                 ,  wheat4
+    chatMsgB                   , black                 ,  tan
+    chatMsgSelected            , black                 ,  -
+    chatDefaultMarker          , yellow                ,  -
+    colHeader                  , deep_sky_blue2        ,  -               , bold
+    editAttr                   , black                 ,  grey
+    editFocusedAttr            , black                 ,  sky_blue1
+    footer                     , black                 ,  grey
+    footerMessage              , black                 ,  grey
+    footerTitle                , white                 ,  black
+    infoTitle                  , cyan                  ,  -
+    listAttr                   , white                 ,  grey7
+    listSelectedAttr           , cornflower_blue       ,  -
+    listSelectedFocusedAttr    , black                 ,  cornflower_blue
+    msgError                   , red                   ,  -
+    msgInfo                    , black                 ,  blue
+    spinner1                   , light_sky_blue1       ,  -
+    spinner2                   , deep_pink3            ,  -
+    tabFooter                  , black                 ,  grey
+    tabSelected                , black                 ,  cornflower_blue
+    tabUnselected              , black                 ,  grey
+    time                       , yellow                ,  -
+    version                    , yellow                ,  grey
+
+    popup                      , black                 ,  pale_turquoise4
+    popupHeader                , blue3                 ,  pale_turquoise4
+    popupButtonOk              , green                 ,  black
+    popupButtonOkFocused       , black                 ,  green
+    popupButtonCancel          , red                   ,  black
+    popupButtonCancelFocused   , black                 ,  red
+    popupTableHeader           , deep_pink4            ,  pale_turquoise4
+
+    popupError                 , black                 ,  red3
+    popupErrorText             , black                 ,  red3
+|]
 
 
 

@@ -19,7 +19,6 @@ import Data.Version qualified as Ver
 import Paths_bollama qualified as Paths
 import System.Directory qualified as Dir
 import System.FilePath ((</>))
-import Text.RawString.QQ (r)
 
 import Core qualified as C
 import Utils qualified as U
@@ -96,45 +95,6 @@ loadTheme = do
 
   Dir.doesFileExist themeFile >>= \case
     True -> U.attrMapFromFile themeFile
-    False -> U.attrMapFromText defaultTheme
+    False -> U.attrMapFromText U.defaultTheme
 
 
-defaultTheme :: Text
-defaultTheme = [r|
-    --default                    , red                   ,  blue
-    borderSelectedLabel        , violet                ,  -
-    chatMsgA                   , black                 ,  wheat4
-    chatMsgB                   , black                 ,  tan
-    chatMsgSelected            , black                 ,  -
-    chatDefaultMarker          , yellow                ,  -
-    colHeader                  , deep_sky_blue2        ,  -               , bold
-    editAttr                   , black                 ,  grey
-    editFocusedAttr            , black                 ,  sky_blue1
-    footer                     , black                 ,  grey
-    footerMessage              , black                 ,  grey
-    footerTitle                , white                 ,  black
-    infoTitle                  , cyan                  ,  -
-    listAttr                   , white                 ,  grey7
-    listSelectedAttr           , cornflower_blue       ,  -
-    listSelectedFocusedAttr    , black                 ,  cornflower_blue
-    msgError                   , red                   ,  -
-    msgInfo                    , black                 ,  blue
-    spinner1                   , light_sky_blue1       ,  -
-    spinner2                   , deep_pink3            ,  -
-    tabFooter                  , black                 ,  grey
-    tabSelected                , black                 ,  cornflower_blue
-    tabUnselected              , black                 ,  grey
-    time                       , yellow                ,  -
-    version                    , yellow                ,  grey
-
-    popup                      , black                 ,  pale_turquoise4
-    popupHeader                , blue3                 ,  pale_turquoise4
-    popupButtonOk              , green                 ,  black
-    popupButtonOkFocused       , black                 ,  green
-    popupButtonCancel          , red                   ,  black
-    popupButtonCancelFocused   , black                 ,  red
-    popupTableHeader           , deep_pink4            ,  pale_turquoise4
-
-    popupError                 , black                 ,  red3
-    popupErrorText             , black                 ,  red3
-|]
