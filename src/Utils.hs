@@ -12,6 +12,7 @@ import           Verset
 
 import Brick qualified as B
 import Brick.AttrMap qualified as BA
+import Brick.Forms qualified as BFm
 import Brick.Widgets.Dialog qualified as BD
 import Brick.Widgets.ProgressBar qualified as BP
 import Brick.Widgets.Edit qualified as BE
@@ -263,6 +264,8 @@ attrMapFromText' txt = do
     readAttrName "listSelectedFocusedAttr" = BL.listSelectedFocusedAttr
     readAttrName "progressCompleteAttr" = BP.progressCompleteAttr
     readAttrName "progressIncompleteAttr" = BP.progressCompleteAttr
+    readAttrName "focusedFormInputAttr" = BFm.focusedFormInputAttr
+    readAttrName "invalidFormInputAttr" = BFm.invalidFormInputAttr
     readAttrName t = BA.attrName . Txt.unpack $ t
 
 
@@ -299,11 +302,15 @@ defaultTheme = [r|
     popupButtonOk              , green                 ,  black
     popupButtonOkFocused       , black                 ,  green
     popupButtonCancel          , red                   ,  black
+    popupButtonDisabled        , black                 ,  silver
+    popupButtonDisabledFocused , black                 ,  grey
     popupButtonCancelFocused   , black                 ,  red
     popupTableHeader           , deep_pink4            ,  pale_turquoise4
 
     popupError                 , black                 ,  red3
     popupErrorText             , black                 ,  red3
+
+    invalidFormInputAttr       , black                 ,  red
 |]
 
 

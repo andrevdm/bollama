@@ -10,4 +10,5 @@
  - scroll bar clicking
  - toggle show thinking
  - model update, delete
- - export chat to JSON and/or markdown
+ - chat params: https://github.com/ollama/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values
+ - theme.csv does not seem to work e.g. form invalid

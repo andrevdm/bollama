@@ -11,6 +11,7 @@ module App where
 import           Verset
 
 import Brick.BChan qualified as BCh
+import Brick.Forms qualified as BFm
 import Brick.Focus qualified as BF
 import Brick qualified as B
 import Brick.Widgets.Edit qualified as BE
@@ -68,6 +69,7 @@ runTui = do
   initialVty <- buildVty
 
   now <- DT.getCurrentTime
+  let chatEditForm = D.mkPopChatEditForm C.emptyChatEditInfo
 
 
   let initialState = C.UiState
@@ -107,11 +109,10 @@ runTui = do
 
        , _stPopup = Nothing
 
-       , _stPopChatEditFocus = BF.focusRing [C.NPopChatEditName, C.NPopChatEditModels, C.NDialogOk, C.NDialogCancel]
-       , _stPopChatEditName = BE.editorText C.NPopChatEditName (Just 1) ""
+       , _stPopChatEditFocus = BF.focusRing $ (BF.focusRingToList . BFm.formFocus $ chatEditForm) <> [C.NDialogOk, C.NDialogCancel]
        , _stPopChatEditTitle = Nothing
-       , _stPopChatEditModels = BL.list C.NPopChatEditModels mempty 1
        , _stPopChatEditOnOk = (\_ _ -> pass)
+       , _stPopChatEditForm = chatEditForm
 
        , _stPopPromptEdit = BE.editorText C.NPopPromptEdit (Just 1) ""
        , _stPopPromptTitle = Nothing
@@ -134,3 +135,5 @@ runTui = do
         (\(e :: SomeException) -> do
           store.swLog.lgError $ "Exception: in " <> n <> "\n" <> show e
         )
+
+

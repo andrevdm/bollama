@@ -11,6 +11,7 @@ module Core where
 import           Verset
 
 import Brick.Focus qualified as BF
+import Brick.Forms qualified as BFm
 import Brick qualified as B
 import Brick.Widgets.Edit qualified as BE
 import Brick.Widgets.List qualified as BL
@@ -35,8 +36,10 @@ data Name
   | NDialogOk
   | NDialogCancel
   --
-  | NPopChatEditName
-  | NPopChatEditModels
+  | NPopChatEditFormName
+  | NPopChatEditFormModels
+  | NPopChatEditFormCtx
+  | NPopChatEditFormTemp
   --
   | NPopPromptEdit
   --
@@ -127,9 +130,8 @@ data UiState = UiState
 
   , _stPopChatEditFocus :: !(BF.FocusRing Name)
   , _stPopChatEditTitle :: !(Maybe Text)
-  , _stPopChatEditName :: !(BE.Editor Text Name)
-  , _stPopChatEditModels :: !(BL.List Name ModelItem)
   , _stPopChatEditOnOk :: !(Text -> Text -> B.EventM Name UiState ())
+  , _stPopChatEditForm :: !(BFm.Form ChatEditInfo UiEvent Name)
 
   , _stPopPromptFocus :: !(BF.FocusRing Name)
   , _stPopPromptTitle :: !(Maybe Text)
@@ -187,7 +189,22 @@ data ModelItem = ModelItem
   , miInfo :: !O.ModelInfo
   , miShow :: !(Maybe O.ShowModelResponse)
   , miTag :: !Text
-  }
+  } deriving stock (Show, Eq)
+
+data AppConfig = AppConfig
+  { acModelTag :: !(Map Text Text)
+  , acDefaultModel :: !(Maybe Text)
+  , acDefaultChat :: !(Maybe Text)
+  } deriving (Show, Eq, Generic)
+
+
+data ChatEditInfo = ChatEditInfo
+  { _ceiName :: !Text
+  , _ceiModels :: ![ModelItem]
+  , _ceiSelectedModel :: !(Maybe ModelItem)
+  , _ceiContext :: !Int
+  , _ceiTemp :: !Double
+  } deriving (Show, Eq)
 
 data Tab
   = TabModels
@@ -204,12 +221,6 @@ data Popup
   | PopupConfirm
   deriving stock (Show, Eq, Ord, Bounded, Enum)
 
-
-data AppConfig = AppConfig
-  { acModelTag :: !(Map Text Text)
-  , acDefaultModel :: !(Maybe Text)
-  , acDefaultChat :: !(Maybe Text)
-  } deriving (Show, Eq, Generic)
 
 data StreamingState
   = SsStreaming
@@ -242,6 +253,16 @@ data LogEntry = LogEntry
   } deriving stock (Show, Eq)
 
 
+emptyChatEditInfo :: ChatEditInfo
+emptyChatEditInfo =
+  ChatEditInfo
+    { _ceiContext = 2048
+    , _ceiTemp = 0.8
+    , _ceiModels = []
+    , _ceiSelectedModel = Nothing
+    , _ceiName = ""
+    }
+
 instance Ae.FromJSON AppConfig where
   parseJSON = Ae.withObject "AppConfig" $ \o -> do
     acModelTag <- o Ae..:? "model_tag"
@@ -263,3 +284,4 @@ ollamaUrl = "http://localhost:11434"
 
 
 makeLenses ''UiState
+makeLenses ''ChatEditInfo

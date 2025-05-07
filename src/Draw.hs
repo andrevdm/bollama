@@ -8,6 +8,8 @@
 
 module Draw
   ( drawUI
+  , mkPopChatEditForm
+  , vBoxWithPadding
   )
   where
 
@@ -16,6 +18,8 @@ import           Verset
 import Brick ((<=>), (<+>))
 import Brick.AttrMap qualified as BA
 import Brick qualified as B
+import Brick.Forms ((@@=))
+import Brick.Forms qualified as BFm
 import Brick.Focus qualified as BF
 import Brick.Widgets.Border qualified as BB
 import Brick.Widgets.Border.Style qualified as BBS
@@ -23,7 +27,7 @@ import Brick.Widgets.Center qualified as BC
 import Brick.Widgets.Core qualified as BW
 import Brick.Widgets.Edit qualified as BE
 import Brick.Widgets.List qualified as BL
-import Control.Lens ((^.))
+import Control.Lens (Lens', (^.))
 import Data.Text qualified as Txt
 import Data.Time qualified as DT
 import Data.Map.Strict qualified as Map
@@ -383,69 +387,86 @@ tabName C.TabLog = "F12: Log"
 ---------------------------------------------------------------------------------------------------
 drawPopupChatEdit :: C.UiState -> B.Widget C.Name
 drawPopupChatEdit st =
-  B.vLimit 27 $
+  B.vLimit 30 $
   B.hLimit 180 $
   borderWithLabel' True (fromMaybe "Chat" st._stPopChatEditTitle) $
   B.withAttr (B.attrName "popup") $
   B.padAll 1 $
-  ( B.vBox
-    [ B.vLimit 1 $ B.hBox
-        [ col 7 "Name:" "popupHeader"
-        , BE.renderEditor (B.txt . Txt.unlines) (BF.focusGetCurrent st._stPopChatEditFocus == Just C.NPopChatEditName) st._stPopChatEditName
-        ]
-    , B.txt " "
-    , B.vLimit 1 $ B.hBox
-        [ col 7 "Model:" "popupHeader"
-        , B.hBox [col 70 "Name" "popupTableHeader", col 11 "Params" "popupTableHeader", col 40 "Capabilities" "popupTableHeader", col 50 "User" "popupTableHeader"]
-        ]
-    , B.vLimit 14 $
-      ( B.padLeft (B.Pad 7) $
-        B.withAttr (B.attrName "listAttr") $
-        BL.renderList renderModel (BF.focusGetCurrent st._stPopChatEditFocus == Just C.NPopChatEditModels) st._stPopChatEditModels
-      )
-    ]
-    <=> B.fill ' '
+  ( BFm.renderForm st._stPopChatEditForm
     <=>
-    ( B.padTop (B.Pad 2) . BC.hCenter $
-      let
-        (attrOk, attrBorderOk) =
-          if BF.focusGetCurrent st._stPopChatEditFocus == Just C.NDialogOk
-          then (B.attrName "popupButtonOkFocused", BBS.unicodeBold)
-          else (B.attrName "popupButtonOk", BBS.unicode)
+    (B.padTop (B.Pad 2) . BC.hCenter $
+      (
+        let
+          focused = BF.focusGetCurrent st._stPopChatEditFocus
+          fieldsValid = BFm.allFieldsValid st._stPopChatEditForm
 
-        (attrCancel, attrBorderCancel) =
-          if BF.focusGetCurrent st._stPopChatEditFocus == Just C.NDialogCancel
-          then (B.attrName "popupButtonCancelFocused", BBS.unicodeBold)
-          else (B.attrName "popupButtonCancel", BBS.unicode)
-      in
-      (     B.withBorderStyle attrBorderOk (BB.border (B.withAttr attrOk . B.vLimit 1 . B.hLimit 8 . BC.hCenter $ B.txt "Ok"))
-        <+> B.txt " "
-        <+> B.withBorderStyle attrBorderCancel (BB.border (B.withAttr attrCancel . B.vLimit 1 . B.hLimit 8 . BC.hCenter $ B.txt "Cancel"))
+          (attrOk, attrBorderOk) =
+            case (fieldsValid, focused) of
+              (True, Just C.NDialogOk) -> (B.attrName "popupButtonOkFocused", BBS.unicodeBold)
+              (True, _) -> (B.attrName "popupButtonOk", BBS.unicode)
+
+              (False, Just C.NDialogOk) -> (B.attrName "popupButtonDisabledFocused", BBS.unicodeBold)
+              (False, _) -> (B.attrName "popupButtonDisabled", BBS.unicode)
+
+          (attrCancel, attrBorderCancel) =
+            if focused == Just C.NDialogCancel
+            then (B.attrName "popupButtonCancelFocused", BBS.unicodeBold)
+            else (B.attrName "popupButtonCancel", BBS.unicode)
+        in
+        (     B.withBorderStyle attrBorderOk (BB.border (B.withAttr attrOk . B.vLimit 1 . B.hLimit 8 . BC.hCenter $ B.txt "Ok"))
+          <+> B.txt " "
+          <+> B.withBorderStyle attrBorderCancel (BB.border (B.withAttr attrCancel . B.vLimit 1 . B.hLimit 8 . BC.hCenter $ B.txt "Cancel"))
+        )
       )
     )
   )
 
-  where
-    renderModel :: Bool -> C.ModelItem -> B.Widget C.Name
-    renderModel selected item =
-      let
-        attrName =
-          if selected
-          then "listSelectedAttr"
-          else "listAttr"
-        cs =
-          case (.capabilities) <$> item.miShow of
-            Just (Just cs') -> Txt.intercalate ", " cs'
-            _ -> ""
-        usr = fromMaybe "" $ Map.lookup item.miName st._stAppConfig.acModelTag
-      in
-      B.withAttr (B.attrName attrName) $
-      B.hBox
-        [ col 70 item.miName ""
-        , col 11 (maybe (spinnerText st) (.details.parameterSize) item.miShow) ""
-        , col 40 cs ""
-        , col 50 usr ""
-        ]
+
+renderPopChatEditModel :: Maybe C.ModelItem -> Bool -> C.ModelItem -> B.Widget C.Name
+renderPopChatEditModel origSelected' selected item =
+  let
+    attrName =
+      if selected
+      then "listSelectedAttr"
+      else "listAttr"
+    cs =
+      case (.capabilities) <$> item.miShow of
+        Just (Just cs') -> Txt.intercalate ", " cs'
+        _ -> ""
+    usr = item.miTag
+    origSelected = (C.miName <$> origSelected') == Just item.miName
+  in
+  B.vLimit 1 . B.withAttr (B.attrName attrName) $
+  B.hBox
+    [ col 1 (if origSelected then ">" else " ") ""
+    , col 70 item.miName ""
+    , col 11 (maybe "?" (.details.parameterSize) item.miShow) ""
+    , col 40 cs ""
+    , col 50 usr ""
+    ]
+
+
+mkPopChatEditForm :: C.ChatEditInfo -> BFm.Form C.ChatEditInfo C.UiEvent C.Name
+mkPopChatEditForm cei =
+  BFm.newForm
+    [ ((col 15 "Name:" "popupHeader") <+>) @@= editTextFieldWithValidate C.ceiName C.NPopChatEditFormName (not . Txt.null)
+    , ((col 15 "Context:" "popupHeader") <+>) @@= BFm.editShowableField C.ceiContext C.NPopChatEditFormCtx
+    , ((col 15 "Temperature:" "popupHeader") <+>) @@= BFm.editShowableField C.ceiTemp C.NPopChatEditFormTemp
+    , ((col 15 "Model:" "popupHeader") <+>) @@= BFm.listField (\s -> V.fromList s._ceiModels) C.ceiSelectedModel (renderPopChatEditModel cei._ceiSelectedModel) 1 C.NPopChatEditFormModels
+    ]
+    cei
+
+editTextFieldWithValidate :: (Ord n, Show n) => Lens' s Text -> n -> (Text -> Bool) -> s -> BFm.FormFieldState s e n
+editTextFieldWithValidate stLens n isValid =
+    let validate ls =
+            let v = Txt.strip . Txt.unlines $ ls in
+            if isValid v
+            then pure v
+            else Nothing
+        limit = Just 1
+        renderText = B.txt . Txt.unlines
+    in BFm.editField stLens n limit identity validate renderText identity
+
 ---------------------------------------------------------------------------------------------------
 
 
@@ -550,6 +571,9 @@ drawErrorMessage st =
   )
 ---------------------------------------------------------------------------------------------------
 
+
+vBoxWithPadding :: Int -> [B.Widget n] -> B.Widget n
+vBoxWithPadding n xs = B.vBox $ xs <&> \x -> B.padBottom (B.Pad n) x
 
 
 

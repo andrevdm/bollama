@@ -114,7 +114,7 @@ The default values are
     msgError                   , red                   ,  -
     msgInfo                    , black                 ,  blue
     spinner1                   , light_sky_blue1       ,  -
-    spinner2                   , dee_pink3             ,  -
+    spinner2                   , deep_pink3            ,  -
     tabFooter                  , black                 ,  grey
     tabSelected                , black                 ,  cornflower_blue
     tabUnselected              , black                 ,  grey
@@ -126,11 +126,15 @@ The default values are
     popupButtonOk              , green                 ,  black
     popupButtonOkFocused       , black                 ,  green
     popupButtonCancel          , red                   ,  black
+    popupButtonDisabled        , black                 ,  silver
+    popupButtonDisabledFocused , black                 ,  grey
     popupButtonCancelFocused   , black                 ,  red
     popupTableHeader           , deep_pink4            ,  pale_turquoise4
 
     popupError                 , black                 ,  red3
     popupErrorText             , black                 ,  red3
+
+    invalidFormInputAttr       , black                 ,  red
 ```
 
 
