@@ -27,7 +27,7 @@ Sorted by parameter size
 
 ### Keys
 
-- `t`   => Edit user text for the model
+- `c`   => Edit user comment for the model
 - `*`   => Set the model as the default for new temp chats
 - `d`   => Delete the model
 - `/`   => Filter models

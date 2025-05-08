@@ -224,7 +224,7 @@ drawChatInner st =
     drawChatMainRight =
       let
         inputEditSelected = BF.focusGetCurrent st._stFocusChat == Just C.NChatInputEdit
-        modelName = fromMaybe "" $ st._stChatCurrent <&> (C.chatModel) . fst
+        modelName = fromMaybe "" $ st._stChatCurrent <&> (C.chatModel)
       in
       borderWithLabel' False "Conversation"
       ( (B.withAttr (B.attrName "colHeader") $ B.txt "Model: ") <+> (B.txt modelName)
@@ -241,7 +241,7 @@ drawChatInner st =
       B.vLimit 8
       (
         borderWithLabel' inputEditSelected "Input (ctrl-s to send)"
-        ( case (snd <$> st._stChatCurrent) of
+        ( case C.chatStreaming <$> st._stChatCurrent of
             Nothing -> B.fill ' '
             Just C.SsNotStreaming -> (BE.renderEditor (B.txt . Txt.unlines) inputEditSelected st._stChatInput)
             Just C.SsStreaming -> spinner2 st <+> B.fill ' '

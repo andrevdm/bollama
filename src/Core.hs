@@ -117,7 +117,7 @@ data UiState = UiState
 
   , _stFocusChat :: !(BF.FocusRing Name)
   , _stChatInput :: !(BE.Editor Text Name)
-  , _stChatCurrent :: !(Maybe (Chat, StreamingState))
+  , _stChatCurrent :: !(Maybe Chat)
   , _stChatMsgs :: ![ChatMessage]
   , _stChatsList :: !(BL.List Name Chat)
 
@@ -151,6 +151,7 @@ data Chat = Chat
   , chatCreatedAt :: !DT.UTCTime
   , chatUpdatedAt :: !DT.UTCTime
   , chatModel :: !Text
+  , chatStreaming :: !StreamingState
   , chatParams :: !ChatParams
   } deriving stock (Show, Eq)
 
@@ -180,10 +181,10 @@ data StoreWrapper = StoreWrapper
   { swListChats :: !(IO [Chat])
 
   , swNewChat :: !(StreamingState -> Text -> Text -> ChatParams -> IO Chat)
-  , swGetChat :: !(ChatId -> IO (Maybe (Chat, [ChatMessage], StreamingState)))
+  , swGetChat :: !(ChatId -> IO (Maybe (Chat, [ChatMessage])))
   , swSaveChat :: !(Chat -> IO ())
-  , swSetCurrent :: !(Maybe ChatId -> IO (Maybe (Chat, [ChatMessage], StreamingState)))
-  , swGetCurrent :: !(IO (Maybe (ChatId, Chat, StreamingState, [ChatMessage])))
+  , swSetCurrent :: !(Maybe ChatId -> IO (Maybe (Chat, [ChatMessage])))
+  , swGetCurrent :: !(IO (Maybe (ChatId, Chat, [ChatMessage])))
   , swAddMessage :: !(ChatId -> O.Role -> StreamingState -> Text -> Text -> IO (Either Text ChatMessage))
   , swStreamDone :: !(ChatId -> IO ())
   , swAddStreamedChatContent :: !(ChatId -> MessageId -> O.Role -> Text -> IO (Either Text ()))

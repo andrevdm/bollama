@@ -278,13 +278,13 @@ handleAppEventGotTime _commandChan t = do
 handleChatUpdated :: C.ChatId -> B.EventM C.Name C.UiState ()
 handleChatUpdated chatId  = do
   use C.stChatCurrent >>= \case
-    Just (currentChat, streamingStateOld) | currentChat.chatId == chatId -> do
+    Just currentChat | currentChat.chatId == chatId -> do
       store <- use C.stStore
-      (ms, streamingState) <- liftIO store.swGetCurrent >>= \case
-        Nothing -> pure ([], streamingStateOld)
-        Just (_, _, ss, ms') -> pure (ms', ss)
+      (chat2, ms) <- liftIO store.swGetCurrent >>= \case
+        Nothing -> pure (Nothing, [])
+        Just (_, chat2, ms') -> pure (Just chat2, ms')
 
-      C.stChatCurrent .= Just (currentChat, streamingState)
+      C.stChatCurrent .= Just (fromMaybe currentChat chat2)
       C.stChatMsgs .= reverse ms
       B.vScrollToEnd (B.viewportScroll C.NChatScroll)
 
@@ -331,7 +331,7 @@ handleTabModels commandChan _ev ve focused k ms =
         let ix = findIndex (\x -> Just x.miName == wasSelected) filteredModels
         C.stModelsList %= BL.listReplace (V.fromList filteredModels) ix
 
-    (Just C.NModelsList, Vty.KChar 't', []) -> do
+    (Just C.NModelsList, Vty.KChar 'c', []) -> do
       tags <- do
         cfg <- use C.stAppConfig
         B.gets (^?  C.stModelsList . BL.listSelectedElementL . to C.miName) >>= \case
@@ -340,7 +340,7 @@ handleTabModels commandChan _ev ve focused k ms =
 
       C.stPopup .= Just C.PopupPrompt
       C.stPopPromptEdit . BE.editContentsL .= TxtZ.textZipper [tags] Nothing
-      C.stPopPromptTitle .= Just "User tag edit"
+      C.stPopPromptTitle .= Just "User comment edit"
       C.stPopPromptOnOk .= \txt -> do
         B.gets (^?  C.stModelsList . BL.listSelectedElementL . to C.miName) >>= \case
           Nothing -> pass
@@ -373,6 +373,18 @@ handleTabModels commandChan _ev ve focused k ms =
                 st <- B.get
                 liftIO $ st._stLog.lgError $ "Error deleting model: " <> show e
               )
+
+    (Just C.NModelsList, Vty.KChar 't', []) -> do
+      C.stTab .= C.TabChat
+      chats <- use C.stChatsList
+      case find (\i -> i.chatName == "Temp") chats of
+        Nothing -> undefined --TODO
+        Just chat -> do
+          --TODO C.stChatCurrent .= Just (chat, C.SsNotStreaming)
+          undefined
+
+      undefined
+
 
     (Just C.NModelsList, Vty.KFun 5, []) -> do
       liftIO $ BCh.writeBChan commandChan C.CmdRefreshModelList
@@ -511,7 +523,7 @@ handleTabChat commandChan store ev ve focused k ms =
     editModel title = do
      use C.stChatCurrent >>= \case
        Nothing -> pass
-       Just (chat, ss) -> do
+       Just chat -> do
          st <- B.get
 
          C.stPopChatEditForm .= BFm.setFormConcat (D.vBoxWithPadding 1) (D.mkPopChatEditForm C.ChatEditInfo
@@ -530,21 +542,21 @@ handleTabChat commandChan store ev ve focused k ms =
                 , C.chatParams = prms
                 }
            liftIO $ store.swSaveChat chat2
-           C.stChatCurrent .= Just (chat2, ss)
+           C.stChatCurrent .= Just chat2
            liftIO . BCh.writeBChan commandChan $ C.CmdRefreshChatsList (Just . Right $ chat.chatId)
 
 
     runInput = do
       liftIO store.swGetCurrent >>= \case
-        Just (cid, chat, _strmState, _) -> do
+        Just (cid, chat, _) -> do
           txt <- use (C.stChatInput . BE.editContentsL . to TxtZ.getText . to Txt.unlines . to Txt.strip)
 
           unless (Txt.null txt) $ do
             findModel chat.chatModel >>= \case
-              Just model -> do
+              Just _model -> do
                 liftIO (store.swAddMessage cid O.User C.SsStreaming chat.chatModel txt) >>= \case
                   Right newMsg -> do
-                    C.stChatCurrent .= Just (chat, C.SsStreaming)
+                    C.stChatCurrent .= Just chat {C.chatStreaming = C.SsStreaming}
                     C.stChatInput . BE.editContentsL %= TxtZ.clearZipper
                     handleChatUpdated cid
                     liftIO . BCh.writeBChan commandChan $ C.CmdChatSend cid newMsg
@@ -575,7 +587,7 @@ handleChatSelectionUpdate = do
 
   case (selectedChat', prevSelected') of
     -- No change, nothing to do
-    (Just (_, selectedChat), Just (prevChatId, _)) | selectedChat.chatId == prevChatId.chatId -> do
+    (Just (_, selectedChat), Just prevChatId) | selectedChat.chatId == prevChatId.chatId -> do
       pass
 
     -- Nothing selected, clear current
@@ -587,8 +599,8 @@ handleChatSelectionUpdate = do
 
     (Just (_, selectedChat), _)-> do
       liftIO (store.swSetCurrent (Just selectedChat.chatId)) >>= \case
-        Just (_, _, streamingState) -> do
-          C.stChatCurrent .= Just (selectedChat, streamingState)
+        Just (_, _) -> do
+          C.stChatCurrent .= Just selectedChat
           handleChatUpdated selectedChat.chatId
 
         Nothing -> do
@@ -699,7 +711,7 @@ runCommands commandChan eventChan store = forever $ do
 
     C.CmdChatSend chatId msg -> do
       store.swGetChat chatId >>= \case
-        Just (chat, hist1, _streamState) -> do
+        Just (chat, hist1) -> do
           debouncedUpdateUi <- Deb.mkDebounce Deb.defaultDebounceSettings
             { Deb.debounceFreq = 500_000  -- 500ms
             , Deb.debounceEdge = Deb.leadingEdge

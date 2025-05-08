@@ -82,7 +82,7 @@ newInMemStore = do
 
 data WrapperState = WrapperState
   { store :: !C.Store
-  , cache :: !(Map C.ChatId (C.StreamingState, C.Chat, [C.ChatMessage]))
+  , cache :: !(Map C.ChatId (C.Chat, [C.ChatMessage]))
   , currentId :: !(Maybe C.ChatId)
   }
 
@@ -128,7 +128,7 @@ newStoreWrapper mkStore = do
         -- Get the chats from the store
         stored <- st.store.srListChats
         -- Temp chats are not stored
-        let tmp = mapMaybe (\(_, c, _) -> if Txt.isInfixOf "#" c.chatName then Just c else Nothing) (Map.elems st.cache)
+        let tmp = mapMaybe (\(c, _) -> if Txt.isInfixOf "#" c.chatName then Just c else Nothing) (Map.elems st.cache)
         pure . reverse . sortOn C.chatUpdatedAt $ stored <> tmp
 
 
@@ -136,8 +136,8 @@ newStoreWrapper mkStore = do
     evict st' a = do
       modifyMVar'_ st' $ \st -> do
         let vs2 = Map.filterWithKey
-                  (\k (streamingSts, c, _) ->
-                    streamingSts == C.SsStreaming
+                  (\k (c, _) ->
+                    c.chatStreaming == C.SsStreaming
                     || Just k == st.currentId
                     || Txt.isInfixOf "#" c.chatName
                   ) st.cache
@@ -170,10 +170,11 @@ newStoreWrapper mkStore = do
             , C.chatUpdatedAt = now
             , C.chatModel = chatModel''
             , C.chatParams = chatParams
+            , C.chatStreaming = streaming
             }
 
       modifyMVar'_ st' $ \st -> do
-        let cache2 = Map.insert chatId (streaming, chat, []) st.cache
+        let cache2 = Map.insert chatId (chat, []) st.cache
 
         -- Store chats, unless there are temporary chats
         unless (Txt.isInfixOf "#" chatName) $
@@ -187,10 +188,10 @@ newStoreWrapper mkStore = do
     saveChat st' chat = do
       modifyMVar'_ st' $ \st -> do
         -- Update the cache with the new chat
-        let cache2 = Map.adjust (\(ss, c1, ms) ->
+        let cache2 = Map.adjust (\(c1, ms) ->
              let c2 = c1 { C.chatName = chat.chatName, C.chatModel = chat.chatModel, C.chatUpdatedAt = chat.chatUpdatedAt }
              in
-             (ss, c2, ms)) chat.chatId st.cache
+             (c2, ms)) chat.chatId st.cache
 
         unless (Txt.isInfixOf "#" chat.chatName) $ do
           -- Save the new chat to the store
@@ -200,21 +201,21 @@ newStoreWrapper mkStore = do
         pure st { cache = cache2 }
 
 
-    getChat :: MVar' WrapperState -> C.ChatId -> IO (Maybe (C.Chat, [C.ChatMessage], C.StreamingState))
+    getChat :: MVar' WrapperState -> C.ChatId -> IO (Maybe (C.Chat, [C.ChatMessage]))
     getChat st' chatId = do
       withMVar' st' $ \st -> getChat' st chatId
 
-    getChat' :: WrapperState -> C.ChatId -> IO (Maybe (C.Chat, [C.ChatMessage], C.StreamingState))
+    getChat' :: WrapperState -> C.ChatId -> IO (Maybe (C.Chat, [C.ChatMessage]))
     getChat' st chatId = do
       case Map.lookup chatId st.cache of
-        Just (streamingSts, chat, ms) -> pure $ Just (chat, ms, streamingSts)
+        Just (chat, ms) -> pure $ Just (chat, ms)
         Nothing -> do
           st.store.srLoadChat chatId >>= \case
             Nothing -> pure Nothing
-            Just (chat, ms) -> pure $ Just (chat, ms, C.SsNotStreaming)
+            Just (chat, ms) -> pure $ Just (chat, ms)
 
 
-    setCurrent :: MVar' WrapperState -> Maybe C.ChatId -> IO (Maybe (C.Chat, [C.ChatMessage], C.StreamingState))
+    setCurrent :: MVar' WrapperState -> Maybe C.ChatId -> IO (Maybe (C.Chat, [C.ChatMessage]))
     setCurrent st' chatId' = do
       modifyMVar' st' $ \st -> do
         let st2 = st { currentId = chatId' }
@@ -225,7 +226,7 @@ newStoreWrapper mkStore = do
         pure (st2, res)
 
 
-    getCurrent :: MVar' WrapperState -> IO (Maybe (C.ChatId, C.Chat, C.StreamingState, [C.ChatMessage]))
+    getCurrent :: MVar' WrapperState -> IO (Maybe (C.ChatId, C.Chat, [C.ChatMessage]))
     getCurrent st' = do
       modifyMVar' st' $ \st -> do
         case st.currentId of
@@ -235,8 +236,8 @@ newStoreWrapper mkStore = do
           Just currentId -> do
             case Map.lookup currentId st.cache of
               -- Current chat is in cache
-              Just (streamingSts, chat, ms) ->
-                pure (st, Just (currentId, chat, streamingSts, ms))
+              Just (chat, ms) ->
+                pure (st, Just (currentId, chat, ms))
 
               -- Current chat is not in cache
               Nothing -> do
@@ -248,9 +249,9 @@ newStoreWrapper mkStore = do
                   -- Current chat is in store
                   Just (c, ms) -> do
                     -- Update cache with the loaded chat
-                    let st2 = st { cache = Map.insert currentId (C.SsNotStreaming, c, ms) st.cache }
+                    let st2 = st { cache = Map.insert currentId (c, ms) st.cache }
                     -- done
-                    pure (st2, Just (currentId, c, C.SsNotStreaming, ms))
+                    pure (st2, Just (currentId, c, ms))
 
 
 
@@ -272,9 +273,11 @@ newStoreWrapper mkStore = do
         -- Update the cache with the new message, if it is in the cache
         let cache2 =
              Map.adjust
-              (\(_, chat, ms1) ->
-                let ms2 = newMsg : ms1 in
-                (streamingSts, chat, ms2)
+              (\(chat, ms1) ->
+                let ms2 = newMsg : ms1
+                    chat2 = chat { C.chatUpdatedAt = now, C.chatStreaming = streamingSts }
+                in
+                (chat2, ms2)
                 )
               chatId
               st.cache
@@ -292,7 +295,7 @@ newStoreWrapper mkStore = do
         current' <-
           -- Get chat from cache or store
           case Map.lookup chatId st.cache of
-            Just (_, chat, ms) -> pure $ Just (chat, ms)
+            Just (chat, ms) -> pure $ Just (chat, ms)
             Nothing -> do
               st.store.srLoadChat chatId >>= \case
                 Nothing -> pure Nothing
@@ -318,7 +321,7 @@ newStoreWrapper mkStore = do
                        , ms1)
 
             let current2 = current1 {C.msgText = C.msgText current1 <> text}
-            let st2 = st { cache = Map.insert chatId (C.SsStreaming, chat, current2 : rest) st.cache }
+            let st2 = st { cache = Map.insert chatId (chat, current2 : rest) st.cache }
             pure (st2, Right ())
 
 
@@ -327,14 +330,14 @@ newStoreWrapper mkStore = do
       modifyMVar'_ st' $ \st -> do
         case Map.lookup chatId st.cache of
           Nothing -> pass
-          Just (_, _, []) -> pass
-          Just (_, _, (m:_)) -> st.store.srSaveChatMessage m
+          Just (_, []) -> pass
+          Just (_, (m:_)) -> st.store.srSaveChatMessage m
 
         let cache2 = Map.adjust go chatId st.cache
         pure st { cache = cache2 }
 
       where
-        go (_, chat, ms) = (C.SsNotStreaming, chat, ms)
+        go (chat, ms) = (chat{ C.chatStreaming = C.SsNotStreaming }, ms)
 
 
 
@@ -366,6 +369,7 @@ newSqliteStore dbPath onLog = do
                      { C._cpTemp = temp
                      , C._cpContextSize = num_ctx
                      }
+                 , C.chatStreaming = C.SsNotStreaming
                  }
 
 
@@ -388,6 +392,7 @@ newSqliteStore dbPath onLog = do
                              { C._cpTemp = temp
                              , C._cpContextSize = num_ctx
                              }
+                         , C.chatStreaming = C.SsNotStreaming
                          }
 
                  msgs1 :: [(Text, Text, Text, DT.UTCTime, Text)] <-
