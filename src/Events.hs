@@ -14,7 +14,6 @@ module Events
 
 import           Verset
 
-import Brick ((<=>), (<+>))
 import Brick qualified as B
 import Brick.BChan qualified as BCh
 import Brick.Forms qualified as BFm
@@ -442,32 +441,18 @@ handleTabChat commandChan store ev ve focused k ms =
       C.stFocusChat %= BF.focusPrev
 
     (_, Vty.KChar 'n', [Vty.MCtrl]) -> do
+      st <- B.get
       C.stPopup .= Just C.PopupChatEdit
       C.stPopChatEditTitle .= Just "New chat"
-      C.stPopChatEditOnOk .= \name model -> do
-        chat <- liftIO $ store.swNewChat name model C.SsNotStreaming
+      C.stPopChatEditForm .= BFm.setFormConcat (D.vBoxWithPadding 1) (D.mkPopChatEditForm C.emptyChatEditInfo
+        { C._ceiModels = st._stModels
+        })
+      C.stPopChatEditOnOk .= \name model prms -> do
+        chat <- liftIO $ store.swNewChat C.SsNotStreaming name model.miName prms
         liftIO . BCh.writeBChan commandChan $ C.CmdRefreshChatsList (Just . Right $ chat.chatId)
 
     (_, Vty.KChar 'e', [Vty.MCtrl]) -> do
-      use C.stChatCurrent >>= \case
-        Nothing -> pass
-        Just (chat, ss) -> do
-          st <- B.get
-          C.stPopChatEditForm .= BFm.setFormConcat (D.vBoxWithPadding 1) (D.mkPopChatEditForm C.ChatEditInfo
-            { _ceiContext = 2048 --TODO
-            , _ceiTemp = 0.8 --TODO
-            , _ceiModels = st._stModels
-            , _ceiSelectedModel = find (\i -> i.miName == chat.chatModel) st._stModels
-            , _ceiName = chat.chatName
-            })
-
-          C.stPopup .= Just C.PopupChatEdit
-          C.stPopChatEditTitle .= Just "Edit chat"
-          C.stPopChatEditOnOk .= \name model -> do
-            let chat2 = chat { C.chatName = name, C.chatModel = model }
-            liftIO $ store.swSaveChat chat2
-            C.stChatCurrent .= Just (chat2, ss)
-            liftIO . BCh.writeBChan commandChan $ C.CmdRefreshChatsList (Just . Right $ chat.chatId)
+        editModel "Edit chat"
 
     (_, Vty.KPageUp, []) -> do
       C.stDebug .= "PageUp"
@@ -514,6 +499,32 @@ handleTabChat commandChan store ev ve focused k ms =
     _ -> pass
 
   where
+    editModel title = do
+     use C.stChatCurrent >>= \case
+       Nothing -> pass
+       Just (chat, ss) -> do
+         st <- B.get
+
+         C.stPopChatEditForm .= BFm.setFormConcat (D.vBoxWithPadding 1) (D.mkPopChatEditForm C.ChatEditInfo
+           { C._ceiModels = st._stModels
+           , C._ceiSelectedModel = find (\i -> i.miName == chat.chatModel) st._stModels
+           , C._ceiName = chat.chatName
+           , C._ceiParams = chat.chatParams
+           })
+
+         C.stPopup .= Just C.PopupChatEdit
+         C.stPopChatEditTitle .= Just title
+         C.stPopChatEditOnOk .= \name model prms -> do
+           let chat2 = chat
+                { C.chatName = name
+                , C.chatModel = model.miName
+                , C.chatParams = prms
+                }
+           liftIO $ store.swSaveChat chat2
+           C.stChatCurrent .= Just (chat2, ss)
+           liftIO . BCh.writeBChan commandChan $ C.CmdRefreshChatsList (Just . Right $ chat.chatId)
+
+
     runInput = do
       liftIO store.swGetCurrent >>= \case
         Just (cid, chat, _strmState, _) -> do
@@ -527,38 +538,14 @@ handleTabChat commandChan store ev ve focused k ms =
                     C.stChatCurrent .= Just (chat, C.SsStreaming)
                     C.stChatInput . BE.editContentsL %= TxtZ.clearZipper
                     handleChatUpdated cid
-
-                    let ctxLen =
-                         case model.miShow of
-                           Nothing -> Nothing
-                           Just ms' -> ms'.modelInfo.llamaContextLength
-
-                    liftIO . BCh.writeBChan commandChan $ C.CmdChatSend cid newMsg (fromMaybe 2048 ctxLen)
+                    liftIO . BCh.writeBChan commandChan $ C.CmdChatSend cid newMsg
 
                   Left err -> do
                     liftIO . store.swLog.lgError $ "Error sending message: " <> err
 
               Nothing -> do
                 C.stDebug .= "Invalid model name: " <> chat.chatModel
-
-                st <- B.get
-                C.stPopChatEditForm .= BFm.setFormConcat (D.vBoxWithPadding 1) (D.mkPopChatEditForm C.ChatEditInfo
-                  { _ceiContext = 2048 --TODO
-                  , _ceiTemp = 0.8 --TODO
-                  , _ceiModels = st._stModels
-                  , _ceiSelectedModel = find (\i -> i.miName == chat.chatModel) st._stModels
-                  , _ceiName = chat.chatName
-                  })
-
-
-                C.stPopup .= Just C.PopupChatEdit
-                C.stPopChatEditTitle .= Just "Select a model"
-                C.stPopChatEditOnOk .= \name model -> do
-                  let chat2 = chat { C.chatName = name, C.chatModel = model }
-                  liftIO $ store.swSaveChat chat2
-                  C.stChatCurrent %= \case
-                    Just (_, ss) -> Just (chat2, ss)
-                    Nothing -> Nothing
+                editModel "Select a model"
 
 
         Nothing -> do
@@ -700,7 +687,7 @@ runCommands commandChan eventChan store = forever $ do
       BCh.writeBChan eventChan . C.UePsList $ ps
 
 
-    C.CmdChatSend chatId msg ctxLen -> do
+    C.CmdChatSend chatId msg -> do
       store.swGetChat chatId >>= \case
         Just (chat, hist1, _streamState) -> do
           debouncedUpdateUi <- Deb.mkDebounce Deb.defaultDebounceSettings
@@ -716,6 +703,15 @@ runCommands commandChan eventChan store = forever $ do
             oMsg = O.Message msg.msgRole msg.msgText Nothing Nothing
             msgAndCtx = NE.fromList $ (reverse hist2) <> [oMsg]
 
+            params = catMaybes
+              [ case chat.chatParams._cpTemp of
+                  Nothing -> Nothing
+                  Just t -> Just ("temperature", Ae.Number . realToFrac $ t)
+              , case chat.chatParams._cpContextSize of
+                  Nothing -> Nothing
+                  Just t -> Just ("num_ctx", Ae.Number . fromIntegral $ t)
+              ]
+
             ops = O.ChatOps
               { chatModelName = chat.chatModel
               , messages = msgAndCtx
@@ -724,9 +720,7 @@ runCommands commandChan eventChan store = forever $ do
               , keepAlive = Just "5m"
               , hostUrl = Just C.ollamaUrl
               , responseTimeOut = Nothing
-              , options = Just . Ae.object $
-                [ ("num_ctx", Ae.Number . fromIntegral $ ctxLen)
-                ]
+              , options = Just . Ae.object $ params
               , stream = Just (
                 \cr -> do
                   case cr.message of
@@ -836,8 +830,7 @@ handleEventPopupChatEdit _commandChan ev ve = do
     Vty.EvKey k ms -> do
       case (focused, k, ms) of
         (_, Vty.KChar 'q', [Vty.MCtrl]) -> do
-          C.stPopup .= Nothing
-          C.stPopChatEditTitle .= Nothing
+          clear
 
         (_, Vty.KEsc, []) -> do
           C.stPopup .= Nothing
@@ -854,10 +847,14 @@ handleEventPopupChatEdit _commandChan ev ve = do
         (Just C.NDialogOk, Vty.KEnter, []) -> do
           if BFm.allFieldsValid st._stPopChatEditForm
             then do
-              C.stPopup .= Nothing
-              C.stPopChatEditTitle .= Nothing
               let f = BFm.formState st._stPopChatEditForm
-              st._stPopChatEditOnOk f._ceiName (maybe "" C.miName f._ceiSelectedModel)
+              case f._ceiSelectedModel of
+                Just model ->
+                  st._stPopChatEditOnOk f._ceiName model f._ceiParams
+                Nothing -> do
+                  store <- use C.stStore
+                  liftIO . store.swLog.lgError $ "No model selected"
+              clear
             else do
               pass
 
@@ -871,6 +868,11 @@ handleEventPopupChatEdit _commandChan ev ve = do
     _ -> pass
 
   where
+    clear = do
+      C.stPopup .= Nothing
+      C.stPopChatEditTitle .= Nothing
+      C.stPopChatEditFocus %= BF.focusSetCurrent C.NPopChatEditFormName
+
     updateFocus :: B.EventM C.Name C.UiState ()
     updateFocus = do
       st <- B.get

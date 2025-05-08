@@ -45,7 +45,7 @@ runTui = do
   store.swLog.lgInfo $ "Starting Bollama v" <> Cfg.verText
 
   -- Create a temporary chat
-  _ <- store.swNewChat "#Temp" (Cfg.defaultModel cfg) C.SsNotStreaming
+  _ <- store.swNewChat C.SsNotStreaming "#Temp" (Cfg.defaultModel cfg) C.emptyChatParams
 
   void . forkIO . catchEx store "commands channel" $ E.runCommands commandChan eventChan store
   void . forkIO . catchEx store "events channel" $ E.runTick eventChan
@@ -111,7 +111,7 @@ runTui = do
 
        , _stPopChatEditFocus = BF.focusRing $ (BF.focusRingToList . BFm.formFocus $ chatEditForm) <> [C.NDialogOk, C.NDialogCancel]
        , _stPopChatEditTitle = Nothing
-       , _stPopChatEditOnOk = (\_ _ -> pass)
+       , _stPopChatEditOnOk = (\_ _ _ -> pass)
        , _stPopChatEditForm = chatEditForm
 
        , _stPopPromptEdit = BE.editorText C.NPopPromptEdit (Just 1) ""

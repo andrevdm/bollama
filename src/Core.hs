@@ -5,6 +5,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 module Core where
 
@@ -74,7 +75,7 @@ data Command
   | CmdRefreshPs
   --
   | CmdRefreshChatsList !(Maybe (Either Text ChatId))
-  | CmdChatSend !ChatId !ChatMessage !Int
+  | CmdChatSend !ChatId !ChatMessage
   --
   | CmdUpdateLog !LogLevel !Text
   deriving stock (Show, Eq)
@@ -130,7 +131,7 @@ data UiState = UiState
 
   , _stPopChatEditFocus :: !(BF.FocusRing Name)
   , _stPopChatEditTitle :: !(Maybe Text)
-  , _stPopChatEditOnOk :: !(Text -> Text -> B.EventM Name UiState ())
+  , _stPopChatEditOnOk :: !(Text -> ModelItem -> ChatParams -> B.EventM Name UiState ())
   , _stPopChatEditForm :: !(BFm.Form ChatEditInfo UiEvent Name)
 
   , _stPopPromptFocus :: !(BF.FocusRing Name)
@@ -150,6 +151,12 @@ data Chat = Chat
   , chatCreatedAt :: !DT.UTCTime
   , chatUpdatedAt :: !DT.UTCTime
   , chatModel :: !Text
+  , chatParams :: !ChatParams
+  } deriving stock (Show, Eq)
+
+data ChatParams = ChatParams
+  { _cpTemp :: !(Maybe Double)
+  , _cpContextSize :: !(Maybe Int)
   } deriving stock (Show, Eq)
 
 data ChatMessage = ChatMessage
@@ -172,7 +179,7 @@ data Store = Store
 data StoreWrapper = StoreWrapper
   { swListChats :: !(IO [Chat])
 
-  , swNewChat :: !(Text -> Text -> StreamingState -> IO Chat)
+  , swNewChat :: !(StreamingState -> Text -> Text -> ChatParams -> IO Chat)
   , swGetChat :: !(ChatId -> IO (Maybe (Chat, [ChatMessage], StreamingState)))
   , swSaveChat :: !(Chat -> IO ())
   , swSetCurrent :: !(Maybe ChatId -> IO (Maybe (Chat, [ChatMessage], StreamingState)))
@@ -203,8 +210,7 @@ data ChatEditInfo = ChatEditInfo
   { _ceiName :: !Text
   , _ceiModels :: ![ModelItem]
   , _ceiSelectedModel :: !(Maybe ModelItem)
-  , _ceiContext :: !Int
-  , _ceiTemp :: !Double
+  , _ceiParams :: !ChatParams
   } deriving (Show, Eq)
 
 data Tab
@@ -257,12 +263,19 @@ data LogEntry = LogEntry
 emptyChatEditInfo :: ChatEditInfo
 emptyChatEditInfo =
   ChatEditInfo
-    { _ceiContext = 2048
-    , _ceiTemp = 0.8
+    { _ceiParams = emptyChatParams
     , _ceiModels = []
     , _ceiSelectedModel = Nothing
     , _ceiName = ""
     }
+
+emptyChatParams :: ChatParams
+emptyChatParams =
+  ChatParams
+    { _cpTemp = Nothing
+    , _cpContextSize = Nothing
+    }
+
 
 instance Ae.FromJSON AppConfig where
   parseJSON = Ae.withObject "AppConfig" $ \o -> do
@@ -286,3 +299,4 @@ ollamaUrl = "http://localhost:11434"
 
 makeLenses ''UiState
 makeLenses ''ChatEditInfo
+makeLenses ''ChatParams

@@ -388,7 +388,7 @@ tabName C.TabLog = "F12: Log"
 drawPopupChatEdit :: C.UiState -> B.Widget C.Name
 drawPopupChatEdit st =
   B.vLimit 30 $
-  B.hLimit 180 $
+  B.hLimit 191 $
   borderWithLabel' True (fromMaybe "Chat" st._stPopChatEditTitle) $
   B.withAttr (B.attrName "popup") $
   B.padAll 1 $
@@ -441,6 +441,7 @@ renderPopChatEditModel origSelected' selected item =
     [ col 1 (if origSelected then ">" else " ") ""
     , col 70 item.miName ""
     , col 11 (maybe "?" (.details.parameterSize) item.miShow) ""
+    , col 11 (maybe "" (\s -> maybe "" show s.modelInfo.llamaContextLength) item.miShow) ""
     , col 40 cs ""
     , col 50 usr ""
     ]
@@ -450,23 +451,51 @@ mkPopChatEditForm :: C.ChatEditInfo -> BFm.Form C.ChatEditInfo C.UiEvent C.Name
 mkPopChatEditForm cei =
   BFm.newForm
     [ ((col 15 "Name:" "popupHeader") <+>) @@= editTextFieldWithValidate C.ceiName C.NPopChatEditFormName (not . Txt.null)
-    , ((col 15 "Context:" "popupHeader") <+>) @@= BFm.editShowableField C.ceiContext C.NPopChatEditFormCtx
-    , ((col 15 "Temperature:" "popupHeader") <+>) @@= BFm.editShowableField C.ceiTemp C.NPopChatEditFormTemp
+    , ((col 15 "Context:" "popupHeader") <+>) @@= editMaybeFieldWithValidate (C.ceiParams . C.cpContextSize) C.NPopChatEditFormCtx (readMaybe @Int . Txt.unpack) show
+    , ((col 15 "Temperature:" "popupHeader") <+>) @@= editMaybeFieldWithValidate (C.ceiParams . C.cpTemp) C.NPopChatEditFormTemp (readMaybe @Double . Txt.unpack) show
     , ((col 15 "Model:" "popupHeader") <+>) @@= BFm.listField (\s -> V.fromList s._ceiModels) C.ceiSelectedModel (renderPopChatEditModel cei._ceiSelectedModel) 1 C.NPopChatEditFormModels
     ]
     cei
 
+
+editFieldWithValidate :: forall n a s e. (Ord n, Show n) => Lens' s a -> n -> (Text -> Maybe a) -> (a -> Text) -> s -> BFm.FormFieldState s e n
+editFieldWithValidate stLens n validate display =
+  let
+    limit = Just 1
+    renderText = B.txt . Txt.strip . Txt.unlines
+    validate' ls' = validate $ Txt.strip . Txt.unlines $ ls'
+  in
+  BFm.editField stLens n limit display validate' renderText identity
+
+
+
 editTextFieldWithValidate :: (Ord n, Show n) => Lens' s Text -> n -> (Text -> Bool) -> s -> BFm.FormFieldState s e n
 editTextFieldWithValidate stLens n isValid =
-    let validate ls =
-            let v = Txt.strip . Txt.unlines $ ls in
-            if isValid v
-            then pure v
-            else Nothing
-        limit = Just 1
-        renderText = B.txt . Txt.unlines
-    in BFm.editField stLens n limit identity validate renderText identity
+    let
+      validate' ls =
+        let v = Txt.strip ls in
+        if isValid v
+          then Just v
+          else Nothing
+    in editFieldWithValidate stLens n validate' identity
 
+
+
+editMaybeFieldWithValidate :: forall n a s e. (Ord n, Show n) => Lens' s (Maybe a) -> n -> (Text -> Maybe a) -> (a -> Text) -> s -> BFm.FormFieldState s e n
+editMaybeFieldWithValidate stLens n validate display =
+  let
+    validate' t =
+      if Txt.null t
+        then Just Nothing
+        else
+          case validate t of
+            Nothing -> Nothing
+            Just v' -> Just (Just v')
+
+    display' :: Maybe a -> Text
+    display' a = maybe "" display a
+  in
+  editFieldWithValidate stLens n validate' display'
 ---------------------------------------------------------------------------------------------------
 
 

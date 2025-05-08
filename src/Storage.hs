@@ -146,8 +146,8 @@ newStoreWrapper mkStore = do
       pure a
 
 
-    newChat :: MVar' WrapperState -> Text -> Text -> C.StreamingState -> IO C.Chat
-    newChat st' chatName'' chatModel streaming = do
+    newChat :: MVar' WrapperState -> C.StreamingState -> Text -> Text -> C.ChatParams -> IO C.Chat
+    newChat st' streaming chatName'' chatModel'' chatParams = do
       chats <- listChats st'
 
       -- Always have a unique chat name
@@ -168,7 +168,8 @@ newStoreWrapper mkStore = do
             , C.chatName = chatName
             , C.chatCreatedAt = now
             , C.chatUpdatedAt = now
-            , C.chatModel = chatModel
+            , C.chatModel = chatModel''
+            , C.chatParams = chatParams
             }
 
       modifyMVar'_ st' $ \st -> do
@@ -351,27 +352,31 @@ newSqliteStore dbPath onLog = do
   let store = C.Store
        { srListChats = do
            withConn $ \conn -> do
-             chats :: [(Text, Text, Text, DT.UTCTime, DT.UTCTime)] <-
-               Sq.query_ conn "SELECT id, name, model, createdAt, updatedAt FROM chat order by name"
+             chats :: [(Text, Text, Text, DT.UTCTime, DT.UTCTime, Maybe Int, Maybe Double)] <-
+               Sq.query_ conn "SELECT id, name, model, createdAt, updatedAt, prm_num_ctx, prm_temperature FROM chat order by name"
 
-             pure $ chats <&> \(chatId, chatName, chatModel, createdAt, updatedAt) ->
+             pure $ chats <&> \(chatId, chatName, chatModel, createdAt, updatedAt, num_ctx, temp) ->
                C.Chat
                  { C.chatId = C.ChatId chatId
                  , C.chatName = chatName
                  , C.chatCreatedAt = createdAt
                  , C.chatUpdatedAt = updatedAt
                  , C.chatModel = chatModel
+                 , C.chatParams = C.ChatParams
+                     { C._cpTemp = temp
+                     , C._cpContextSize = num_ctx
+                     }
                  }
 
 
        , srLoadChat = \(C.ChatId chatId) -> do
            withConn $ \conn -> do
-             chat1 :: [(Text, Text, Text, DT.UTCTime, DT.UTCTime)] <-
-               Sq.query conn "SELECT id, name, model, createdAt, updatedAt FROM chat WHERE id = ?" (Sq.Only chatId)
+             chat1 :: [(Text, Text, Text, DT.UTCTime, DT.UTCTime, Maybe Int, Maybe Double)] <-
+               Sq.query conn "SELECT id, name, model, createdAt, updatedAt, prm_num_ctx, prm_temperature FROM chat WHERE id = ?" (Sq.Only chatId)
 
              case chat1 of
                [] -> pure Nothing
-               ((id, name, model, createdAt, updatedAt): _) -> do
+               ((id, name, model, createdAt, updatedAt, num_ctx, temp): _) -> do
                  let chat =
                        C.Chat
                          { C.chatId = C.ChatId id
@@ -379,6 +384,10 @@ newSqliteStore dbPath onLog = do
                          , C.chatCreatedAt = createdAt
                          , C.chatUpdatedAt = updatedAt
                          , C.chatModel = model
+                         , C.chatParams = C.ChatParams
+                             { C._cpTemp = temp
+                             , C._cpContextSize = num_ctx
+                             }
                          }
 
                  msgs1 :: [(Text, Text, Text, DT.UTCTime, Text)] <-
@@ -405,12 +414,14 @@ newSqliteStore dbPath onLog = do
 
        , srSaveChat = \chat -> do
            withConn_ $ \conn -> do
-             Sq.execute conn "INSERT OR REPLACE INTO chat (id, name, model, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)"
+             Sq.execute conn "INSERT OR REPLACE INTO chat (id, name, model, createdAt, updatedAt, prm_num_ctx, prm_temperature) VALUES (?, ?, ?, ?, ?, ?, ?)"
                ( chat.chatId & \(C.ChatId chatId) -> chatId
                , chat.chatName
                , chat.chatModel
                , chat.chatCreatedAt
                , chat.chatUpdatedAt
+               , chat.chatParams._cpContextSize
+               , chat.chatParams._cpTemp
                )
 
        , srSaveChatMessage = \msg -> do
@@ -495,11 +506,23 @@ newSqliteStore dbPath onLog = do
     createScripts :: [Sq.Query]
     createScripts =
      [ [r| CREATE TABLE IF NOT EXISTS chat (
-             id         TEXT      PRIMARY KEY,
-             name       TEXT      NOT NULL,
-             createdAt  DATETIME  NOT NULL,
-             updatedAt  DATETIME  NOT NULL,
-             model      TEXT      NOT NULL
+             id                    TEXT      PRIMARY KEY,
+             name                  TEXT      NOT NULL,
+             createdAt             DATETIME  NOT NULL,
+             updatedAt             DATETIME  NOT NULL,
+             model                 TEXT      NOT NULL,
+             prm_num_ctx           INT       NULL,
+             prm_temperature       FLOAT     NULL,
+             prm_mirostat          INT       NULL,
+             prm_mirostat_eta	     FLOAT     NULL,
+             prm_mirostat_tau	     FLOAT     NULL,
+             prm_repeat_last_n     INT       NULL,
+             prm_repeat_penalty    FLOAT     NULL,
+             prm_seed	             INT       NULL,
+             prm_num_predict       INT       NULL,
+             prm_top_k             INT       NULL,
+             prm_top_p             FLOAT     NULL,
+             prm_min_p             FLOAT     NULL
            );
        |]
      , [r| CREATE TABLE IF NOT EXISTS chatMessage (

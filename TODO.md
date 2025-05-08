@@ -14,3 +14,4 @@
  - theme.csv does not seem to work e.g. form invalid
  - refresh with filter active only shows the filtered models when the filter is cleared
  - cmd arg to set URL
+ - `t` and `n` on model list to start temp/new chat
