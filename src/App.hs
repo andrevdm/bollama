@@ -119,8 +119,9 @@ runTui = do
        , _stPopPromptFocus = BF.focusRing [C.NPopPromptEdit, C.NDialogOk, C.NDialogCancel]
        , _stPopPromptOnOk = const pass
 
-       , _stPopConfirmFocus = BF.focusRing [C.NDialogOk, C.NDialogCancel]
+       , _stPopConfirmFocus = BF.focusRing [C.NDialogCancel, C.NDialogOk]
        , _stPopConfirmTitle = Nothing
+       , _stPopConfirmDetail = Nothing
        , _stPopConfirmOnOk = pass
        }
 

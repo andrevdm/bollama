@@ -514,13 +514,17 @@ drawPopupPrompt st =
 ---------------------------------------------------------------------------------------------------
 drawPopupConfirm :: C.UiState -> B.Widget C.Name
 drawPopupConfirm st =
-  B.vLimit 10 $
-  B.hLimit 180 $
+  B.vLimit 14 $
+  B.hLimit 150 $
   borderWithLabel' True (fromMaybe "Confirm" st._stPopConfirmTitle) $
   B.withAttr (B.attrName "popup") $
   B.padAll 1 $
   ( ( B.withAttr (B.attrName "popupHeader") $
       B.txt (fromMaybe "Are you sure?" st._stPopConfirmTitle)
+    )
+    <=>
+    ( B.withAttr (B.attrName "popupHeader") $
+      B.txtWrap (fromMaybe "" st._stPopConfirmDetail)
     )
     <=>
     ( B.padTop (B.Pad 2) . BC.hCenter $
@@ -535,9 +539,9 @@ drawPopupConfirm st =
           then (B.attrName "popupButtonCancelFocused", BBS.unicodeBold)
           else (B.attrName "popupButtonCancel", BBS.unicode)
       in
-      (     B.withBorderStyle attrBorderOk (BB.border (B.withAttr attrOk . B.vLimit 1 . B.hLimit 8 . BC.hCenter $ B.txt "Ok"))
+      (     B.withBorderStyle attrBorderOk (BB.border (B.withAttr attrOk . B.vLimit 1 . B.hLimit 8 . BC.hCenter $ B.txt "Yes"))
         <+> B.txt " "
-        <+> B.withBorderStyle attrBorderCancel (BB.border (B.withAttr attrCancel . B.vLimit 1 . B.hLimit 8 . BC.hCenter $ B.txt "Cancel"))
+        <+> B.withBorderStyle attrBorderCancel (BB.border (B.withAttr attrCancel . B.vLimit 1 . B.hLimit 8 . BC.hCenter $ B.txt "No"))
       )
     )
   )

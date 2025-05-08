@@ -309,7 +309,7 @@ handleTabModels
   -> Vty.Key
   -> [Vty.Modifier]
   -> B.EventM C.Name C.UiState ()
-handleTabModels _commandChan _ev ve focused k ms =
+handleTabModels commandChan _ev ve focused k ms =
   case (focused, k, ms) of
     (Just C.NModelsList, Vty.KChar '/', []) -> do
       currentFilter <- use C.stModelsFilter
@@ -347,6 +347,27 @@ handleTabModels _commandChan _ev ve focused k ms =
           C.stAppConfig %= \cfg2 -> cfg2 { C.acDefaultModel = Just selected }
           liftIO . Cfg.writeAppConfig =<< use C.stAppConfig
           C.stDebug .= "Default model set to: " <> selected
+
+    (Just C.NModelsList, Vty.KChar 'd', []) -> do
+      B.gets (^?  C.stModelsList . BL.listSelectedElementL . to C.miName) >>= \case
+        Nothing -> pass
+        Just selected -> do
+          C.stPopup .= Just C.PopupConfirm
+          C.stPopConfirmTitle .= Just "Are you sure you want to remove this model?"
+          C.stPopConfirmDetail .= Just ("   " <> selected)
+          C.stPopConfirmOnOk .= do
+            catch
+              (do
+                 liftIO $ O.deleteModel selected
+                 liftIO $ BCh.writeBChan commandChan C.CmdRefreshModelList
+              )
+              (\(e :: SomeException) -> do
+                st <- B.get
+                liftIO $ st._stLog.lgError $ "Error deleting model: " <> show e
+              )
+
+    (Just C.NModelsList, Vty.KFun 5, []) -> do
+      liftIO $ BCh.writeBChan commandChan C.CmdRefreshModelList
 
     (Just C.NModelsList, _, _) -> do
       B.zoom C.stModelsList $ BL.handleListEventVi BL.handleListEvent ve
@@ -484,6 +505,7 @@ handleTabChat commandChan store ev ve focused k ms =
           C.stDebug .= "Default chat set: " <> chat.chatName
           C.stAppConfig %= \cfg2 -> cfg2 { C.acDefaultChat = Just (C.unChatId chat.chatId) }
           liftIO . Cfg.writeAppConfig =<< use C.stAppConfig
+
 
     (Just C.NChatsList, _, _) -> do
       B.zoom C.stChatsList $ BL.handleListEventVi BL.handleListEvent ve
@@ -934,12 +956,10 @@ handleEventPopupConfirm _commandChan _ev ve = do
     Vty.EvKey k ms -> do
       case (focused, k, ms) of
         (_, Vty.KChar 'q', [Vty.MCtrl]) -> do
-          C.stPopup .= Nothing
-          C.stPopConfirmTitle .= Nothing
+          clear
 
         (_, Vty.KEsc, []) -> do
-          C.stPopup .= Nothing
-          C.stPopConfirmTitle .= Nothing
+          clear
 
         (_, Vty.KChar '\t', []) -> do
           C.stPopConfirmFocus %= BF.focusNext
@@ -948,22 +968,19 @@ handleEventPopupConfirm _commandChan _ev ve = do
           C.stPopConfirmFocus %= BF.focusPrev
 
         (Just C.NDialogOk, Vty.KEnter, []) -> do
-          C.stPopup .= Nothing
-          C.stPopConfirmTitle .= Nothing
-          C.stPopConfirmFocus %= BF.focusSetCurrent C.NDialogCancel
           _ <- st._stPopConfirmOnOk
-          pass
+          clear
 
         (Just C.NDialogCancel, Vty.KEnter, []) -> do
-          C.stPopup .= Nothing
-          C.stPopConfirmTitle .= Nothing
-          C.stPopConfirmFocus %= BF.focusSetCurrent C.NDialogCancel
+          clear
 
         _ -> pass
 
     _ -> pass
+  where
+    clear = do
+      C.stPopup .= Nothing
+      C.stPopConfirmTitle .= Nothing
+      C.stPopConfirmDetail .= Nothing
+      C.stPopConfirmFocus %= BF.focusSetCurrent C.NDialogCancel
 ----------------------------------------------------------------------------------------------------------------------
-
-
-
-

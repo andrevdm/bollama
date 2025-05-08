@@ -302,7 +302,7 @@ defaultTheme = [r|
     popupButtonOk              , green                 ,  black
     popupButtonOkFocused       , black                 ,  green
     popupButtonCancel          , red                   ,  black
-    popupButtonDisabled        , black                 ,  silver
+    popupButtonDisabled        , black                 ,  grey35
     popupButtonDisabledFocused , black                 ,  grey
     popupButtonCancelFocused   , black                 ,  red
     popupTableHeader           , deep_pink4            ,  pale_turquoise4

@@ -140,6 +140,7 @@ data UiState = UiState
 
   , _stPopConfirmFocus :: !(BF.FocusRing Name)
   , _stPopConfirmTitle :: !(Maybe Text)
+  , _stPopConfirmDetail :: !(Maybe Text)
   , _stPopConfirmOnOk :: !(B.EventM Name UiState ())
   }
 
