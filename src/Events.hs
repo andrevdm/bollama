@@ -204,6 +204,8 @@ handleAppEventTick commandChan t = do
 handleAppEventGotModelList :: BCh.BChan C.Command -> [O.ModelInfo] -> B.EventM C.Name C.UiState ()
 handleAppEventGotModelList commandChan ms1 = do
   cfg <- use C.stAppConfig
+  prevList <- use C.stModelsList
+
   let ms2 = ms1
   let ms = ms2 <&> \m -> C.ModelItem
         { miName = m.name
@@ -211,10 +213,13 @@ handleAppEventGotModelList commandChan ms1 = do
         , miShow = Nothing
         , miTag = fromMaybe "" $ cfg.acModelTag ^. at m.name
         }
+      prevSelected = snd <$> BL.listSelectedElement prevList
+      prevSelectedName = (.miName) <$> prevSelected
 
   C.stModels .= ms
   filteredModels <- filterModels
-  C.stModelsList %= BL.listReplace (V.fromList filteredModels) Nothing
+  let ix = findIndex (\x -> Just x.miName == prevSelectedName) filteredModels
+  C.stModelsList %= BL.listReplace (V.fromList filteredModels) ix
   C.stModelListLoading .= False
 
   C.stModelShowLoading .= True
@@ -232,31 +237,35 @@ handleAppEventPsList _commandChan ps' = do
 
 handleAppEventGotModelShow :: BCh.BChan C.Command -> (Text, O.ShowModelResponse) -> B.EventM C.Name C.UiState ()
 handleAppEventGotModelShow _commandChan (m, s) = do
+  l1 <- use C.stModelsList
   vs1 <- use C.stModels
-  let
-    ix = findIndex (\x -> x.miName == m) vs1
-    vs2 = vs1 <&> \old ->
-      if old.miName == m
-        then old { C.miShow = Just s }
-        else old
+
+  let vs2 = vs1 <&> \old ->
+       if old.miName == m
+         then old { C.miShow = Just s }
+         else old
+
+      selected = snd <$> BL.listSelectedElement l1
+      selectedName = (.miName) <$> selected
 
   C.stModels .= vs2
   filteredModels <- filterModels
+
+  let ix = findIndex (\x -> Just x.miName == selectedName) filteredModels
   C.stModelsList %= BL.listReplace (V.fromList filteredModels) ix
+  C.stDebug .= show (ix, selectedName)
 
 
 handleAppEventModelShowDone :: BCh.BChan C.Command -> B.EventM C.Name C.UiState ()
 handleAppEventModelShowDone _commandChan = do
   l1 <- use C.stModelsList
+  filteredModels <- filterModels
+
   let
     selected = snd <$> BL.listSelectedElement l1
     selectedName = (.miName) <$> selected
-    vs1 = V.toList $ BL.listElements l1
-    vs2 = reverse $ sortOn U.parseParams vs1
-    ix = findIndex (\x -> Just x.miName == selectedName) vs2
+    ix = findIndex (\x -> Just x.miName == selectedName) filteredModels
 
-  C.stModels .= vs2
-  filteredModels <- filterModels
   C.stModelsList %= BL.listReplace (V.fromList filteredModels) ix
   C.stModelShowLoading .= False
 
@@ -641,19 +650,20 @@ filterModels :: B.EventM C.Name C.UiState [C.ModelItem]
 filterModels = do
   vs <- use C.stModels
   t <- Txt.strip . Txt.toLower <$> use C.stModelsFilter
-
-  if Txt.null t
-    then pure vs
-    else
-      pure $ filter (\mi ->
-          let
-            name = Txt.strip . Txt.toLower $ mi.miName
-            capabilities = Txt.toLower . Txt.intercalate " " . fromMaybe [] . join $ mi.miShow <&> (.capabilities)
-            tags = Txt.toLower mi.miTag
-          in
-          Txt.isInfixOf t (name <> " " <> capabilities <> " " <> tags)
-        )
-        vs
+  let vs2 =
+       if Txt.null t
+        then vs
+        else
+          filter (\mi ->
+            let
+              name = Txt.strip . Txt.toLower $ mi.miName
+              capabilities = Txt.toLower . Txt.intercalate " " . fromMaybe [] . join $ mi.miShow <&> (.capabilities)
+              tags = Txt.toLower mi.miTag
+            in
+            Txt.isInfixOf t (name <> " " <> capabilities <> " " <> tags)
+          )
+          vs
+  pure . reverse $ sortOn U.parseParams vs2
 ---------------------------------------------------------------------------------------------------
 
 

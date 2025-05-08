@@ -30,6 +30,7 @@ Sorted by parameter size
 - `t`   => Edit user text for the model
 - `*`   => Set the model as the default for new temp chats
 - `d`   => Delete the model
+- `/`   => Filter models
 - `F5`  => Refresh the model list
 
 
@@ -43,7 +44,7 @@ Shows current running models
 
 ### Keys
 
-- `s`  => Stop selected model
+- `s`  => Stop selected model.  (Sends a TTL of 0)
 
 
 
