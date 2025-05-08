@@ -273,8 +273,8 @@ defaultTheme :: Text
 defaultTheme = [r|
     --default                    , red                   ,  blue
     borderSelectedLabel        , violet                ,  -
-    chatMsgA                   , black                 ,  wheat4
-    chatMsgB                   , black                 ,  tan
+    chatMsgA                   , black                 ,  #707070
+    chatMsgB                   , black                 ,  #a0a0a0
     chatMsgSelected            , black                 ,  -
     chatDefaultMarker          , yellow                ,  -
     colHeader                  , deep_sky_blue2        ,  -               , bold
