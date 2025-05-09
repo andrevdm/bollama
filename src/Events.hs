@@ -374,16 +374,34 @@ handleTabModels commandChan _ev ve focused k ms =
                 liftIO $ st._stLog.lgError $ "Error deleting model: " <> show e
               )
 
+    -- Use current model for #Temp chat
     (Just C.NModelsList, Vty.KChar 't', []) -> do
-      C.stTab .= C.TabChat
       chats <- use C.stChatsList
-      case find (\i -> i.chatName == "Temp") chats of
-        Nothing -> undefined --TODO
-        Just chat -> do
-          --TODO C.stChatCurrent .= Just (chat, C.SsNotStreaming)
-          undefined
+      case find (\i -> i.chatName == "#Temp") chats of
+        Nothing -> C.stDebug .= "No temp chat" --TODO
+        Just chat1 -> do
+          B.gets (^?  C.stModelsList . BL.listSelectedElementL . to C.miName) >>= \case
+            Nothing -> C.stDebug .= "No model selected" --TODO
+            Just model -> do
+              store <- use C.stStore
+              now <- liftIO DT.getCurrentTime
 
-      undefined
+              let chat2 = chat1
+                    { C.chatModel = model
+                    , C.chatUpdatedAt = now
+                    }
+
+              C.stTab .= C.TabChat
+              C.stFocusChat %= BF.focusSetCurrent C.NChatInputEdit
+              liftIO $ store.swSaveChat chat2
+              liftIO . BCh.writeBChan commandChan $ C.CmdRefreshChatsList (Just . Right $ chat2.chatId)
+
+
+    -- Use current model for a new chat
+    (Just C.NModelsList, Vty.KChar 'n', []) -> do
+      C.stTab .= C.TabChat
+      modelName <- B.gets (^?  C.stModelsList . BL.listSelectedElementL . to C.miName)
+      startNewChat commandChan modelName
 
 
     (Just C.NModelsList, Vty.KFun 5, []) -> do
@@ -462,15 +480,7 @@ handleTabChat commandChan store ev ve focused k ms =
       C.stFocusChat %= BF.focusPrev
 
     (_, Vty.KChar 'n', [Vty.MCtrl]) -> do
-      st <- B.get
-      C.stPopup .= Just C.PopupChatEdit
-      C.stPopChatEditTitle .= Just "New chat"
-      C.stPopChatEditForm .= BFm.setFormConcat (D.vBoxWithPadding 1) (D.mkPopChatEditForm C.emptyChatEditInfo
-        { C._ceiModels = st._stModels
-        })
-      C.stPopChatEditOnOk .= \name model prms -> do
-        chat <- liftIO $ store.swNewChat C.SsNotStreaming name model.miName prms
-        liftIO . BCh.writeBChan commandChan $ C.CmdRefreshChatsList (Just . Right $ chat.chatId)
+      startNewChat commandChan Nothing
 
     (_, Vty.KChar 'e', [Vty.MCtrl]) -> do
         editModel "Edit chat"
@@ -554,6 +564,7 @@ handleTabChat commandChan store ev ve focused k ms =
           unless (Txt.null txt) $ do
             findModel chat.chatModel >>= \case
               Just _model -> do
+                C.stDebug .= show (_model, chat.chatModel)
                 liftIO (store.swAddMessage cid O.User C.SsStreaming chat.chatModel txt) >>= \case
                   Right newMsg -> do
                     C.stChatCurrent .= Just chat {C.chatStreaming = C.SsStreaming}
@@ -578,17 +589,32 @@ handleTabChat commandChan store ev ve focused k ms =
       pure $ find (\m -> m.miName == n) models
 
 
+startNewChat :: BCh.BChan C.Command -> Maybe Text -> B.EventM C.Name C.UiState ()
+startNewChat commandChan defaultModel = do
+  st <- B.get
+  store <- use C.stStore
+  C.stPopup .= Just C.PopupChatEdit
+  C.stPopChatEditTitle .= Just "New chat"
+  C.stPopChatEditForm .= BFm.setFormConcat (D.vBoxWithPadding 1) (D.mkPopChatEditForm C.emptyChatEditInfo
+    { C._ceiModels = st._stModels
+    , C._ceiSelectedModel = find (\i -> Just i.miName == defaultModel) st._stModels
+    })
+  C.stPopChatEditOnOk .= \name model prms -> do
+    chat <- liftIO $ store.swNewChat C.SsNotStreaming name model.miName prms
+    liftIO . BCh.writeBChan commandChan $ C.CmdRefreshChatsList (Just . Right $ chat.chatId)
+
+
 
 handleChatSelectionUpdate :: B.EventM C.Name C.UiState ()
 handleChatSelectionUpdate = do
   selectedChat' <- use (C.stChatsList . to BL.listSelectedElement)
-  prevSelected' <- use C.stChatCurrent
+  prevActive' <- use C.stChatCurrent
   store <- use C.stStore
 
-  case (selectedChat', prevSelected') of
-    -- No change, nothing to do
+  case (selectedChat', prevActive') of
+    -- No change, but update to make sure we have the latest settings
     (Just (_, selectedChat), Just prevChatId) | selectedChat.chatId == prevChatId.chatId -> do
-      pass
+      handleChatUpdated selectedChat.chatId
 
     -- Nothing selected, clear current
     (Nothing, _) -> do

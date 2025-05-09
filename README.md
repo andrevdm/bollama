@@ -32,7 +32,8 @@ Sorted by parameter size
 - `d`   => Delete the model
 - `/`   => Filter models
 - `F5`  => Refresh the model list
-
+- `t`   => Use the `#Temp` chat with the selected model
+- `n`   => Start a new chat with the selected model
 
 
 # PS

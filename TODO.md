@@ -13,4 +13,5 @@
  - chat params: https://github.com/ollama/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values
  - theme.csv does not seem to work e.g. form invalid
  - cmd arg to set URL
- - `t` and `n` on model list to start temp/new chat
+ - switching chats should keep the current input text in a cache
+ - sort chat edit list

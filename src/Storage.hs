@@ -189,7 +189,11 @@ newStoreWrapper mkStore = do
       modifyMVar'_ st' $ \st -> do
         -- Update the cache with the new chat
         let cache2 = Map.adjust (\(c1, ms) ->
-             let c2 = c1 { C.chatName = chat.chatName, C.chatModel = chat.chatModel, C.chatUpdatedAt = chat.chatUpdatedAt }
+             let c2 = c1 { C.chatName = chat.chatName
+                         , C.chatModel = chat.chatModel
+                         , C.chatUpdatedAt = chat.chatUpdatedAt
+                         , C.chatStreaming = chat.chatStreaming
+                         }
              in
              (c2, ms)) chat.chatId st.cache
 
