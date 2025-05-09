@@ -15,3 +15,5 @@
  - cmd arg to set URL
  - switching chats should keep the current input text in a cache
  - sort chat edit list
+ - options UI
+   - support unicode

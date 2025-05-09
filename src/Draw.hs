@@ -209,10 +209,10 @@ drawChatInner st =
       drawChatMainLeft <+> (B.padLeft (B.Pad 4) $ drawChatMainRight)
 
     drawChatTop =
-      B.txt "chatTop"
+      B.emptyWidget
 
     drawChatBottom =
-      B.txt "chatBottom"
+      B.emptyWidget
 
     drawChatMainLeft =
       let selected = BF.focusGetCurrent st._stFocusChat == Just C.NChatsList
@@ -357,14 +357,18 @@ col width txt' attr =
 --  (B.vLimit 1 . B.hLimit width $ B.fill ' ' <+> (B.withAttr (BA.attrName attr) $ B.txt txt'))
 
 spinnerText :: C.UiState -> Text
-spinnerText st = fromMaybe "" $ spinnerFrames `atMay` ((st ^. C.stTick + 0) `mod` length spinnerFrames)
+spinnerText st =
+  let frames = spinnerFrames st._stAppConfig.acAvoidEmojis in
+  fromMaybe "" $ frames `atMay` ((st ^. C.stTick + 0) `mod` length frames)
 
 spinner :: C.UiState -> B.Widget n
 spinner st = B.withAttr (B.attrName "spinner1") . B.txt $ spinnerText st
 
 
 spinnerText2 :: C.UiState -> Text
-spinnerText2 st = fromMaybe "" $ spinnerFrames2 `atMay` ((st ^. C.stTick + 0) `mod` length spinnerFrames2)
+spinnerText2 st =
+  let frames = spinnerFrames2 st._stAppConfig.acAvoidEmojis in
+  fromMaybe "" $ frames `atMay` ((st ^. C.stTick + 0) `mod` length frames)
 
 spinner2 :: C.UiState -> B.Widget n
 spinner2 st = B.withAttr (B.attrName "spinner2") . B.txt $ spinnerText2 st
@@ -611,14 +615,12 @@ vBoxWithPadding n xs = B.vBox $ xs <&> \x -> B.padBottom (B.Pad n) x
 
 
 
-spinnerFrames :: [Text]
-spinnerFrames = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]
---spinnerFrames = ["-", "\\", "|", "/"]
---spinnerFrames = ["◜", "◠", "◝", "◞", "◡", "◟"]
+spinnerFrames :: Bool -> [Text]
+spinnerFrames False = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]
+spinnerFrames True = ["-", "\\", "|", "/"]
 
-spinnerFrames2 :: [Text]
---spinnerFrames2 = ["█▒▒▒▒▒▒▒▒▒", "███▒▒▒▒▒▒▒", "█████▒▒▒▒▒", "███████▒▒▒", "██████████"]
-spinnerFrames2 =
+spinnerFrames2 :: Bool -> [Text]
+spinnerFrames2 avoidEmojis =
   let x =
        [ "🖋️"
        , ".🖋️"
@@ -647,4 +649,6 @@ spinnerFrames2 =
        , "........................🖋️"
        ]
   in
-  x
+  if avoidEmojis
+  then Txt.replace "🖋️" "w" <$> x
+  else x

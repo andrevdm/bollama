@@ -204,6 +204,7 @@ data AppConfig = AppConfig
   { acModelTag :: !(Map Text Text)
   , acDefaultModel :: !(Maybe Text)
   , acDefaultChat :: !(Maybe Text)
+  , acAvoidEmojis :: !Bool
   } deriving (Show, Eq, Generic)
 
 
@@ -283,7 +284,8 @@ instance Ae.FromJSON AppConfig where
     acModelTag <- o Ae..:? "model_tag"
     acDefaultModel <- o Ae..:? "default_model"
     acDefaultChatName <- o Ae..:? "default_chat"
-    pure $ AppConfig (fromMaybe mempty acModelTag) acDefaultModel acDefaultChatName
+    acAvoidEmojis <- o Ae..:? "avoid_emojis"
+    pure $ AppConfig (fromMaybe mempty acModelTag) acDefaultModel acDefaultChatName (fromMaybe False acAvoidEmojis)
 
 instance Ae.ToJSON AppConfig where
   toJSON = Ae.genericToJSON Ae.defaultOptions { Ae.fieldLabelModifier = renSnake 2 }

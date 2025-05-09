@@ -186,7 +186,8 @@ handleAppEvent commandChan uev = do
       C.stLogList %= BL.listReplace (V.fromList ls) Nothing
       C.stLogList %= BL.listMoveToEnd
 
-      C.stDebug .= (U.logLevelName lvl) <> ":" <> msg
+      when (lvl `elem` [C.LlCritical, C.LlError, C.LlWarn]) $ do
+        C.stDebug .= (U.logLevelName lvl) <> ":" <> msg
 
       when (lvl `elem` [C.LlCritical, C.LlError]) $ do
         C.stErrorMessage .= Just msg
@@ -253,7 +254,6 @@ handleAppEventGotModelShow _commandChan (m, s) = do
 
   let ix = findIndex (\x -> Just x.miName == selectedName) filteredModels
   C.stModelsList %= BL.listReplace (V.fromList filteredModels) ix
-  C.stDebug .= show (ix, selectedName)
 
 
 handleAppEventModelShowDone :: BCh.BChan C.Command -> B.EventM C.Name C.UiState ()
@@ -486,19 +486,15 @@ handleTabChat commandChan store ev ve focused k ms =
         editModel "Edit chat"
 
     (_, Vty.KPageUp, []) -> do
-      C.stDebug .= "PageUp"
       B.vScrollPage (B.viewportScroll C.NChatScroll) B.Up
 
     (_, Vty.KPageUp, [Vty.MCtrl]) -> do
-      C.stDebug .= "PageUp"
       B.vScrollToBeginning (B.viewportScroll C.NChatScroll)
 
     (_, Vty.KPageDown, []) -> do
-      C.stDebug .= "PageDown"
       B.vScrollPage (B.viewportScroll C.NChatScroll) B.Down
 
     (_, Vty.KPageDown, [Vty.MCtrl]) -> do
-      C.stDebug .= "PageDown"
       B.vScrollToEnd (B.viewportScroll C.NChatScroll)
 
     (Just C.NChatInputEdit, Vty.KChar 'r', [Vty.MCtrl]) -> do
@@ -511,7 +507,6 @@ handleTabChat commandChan store ev ve focused k ms =
       runInput
 
     (Just C.NChatInputEdit, _, _) -> do
-      C.stDebug .= show (k, ms)
       B.zoom C.stChatInput $ BE.handleEditorEvent ev
 
     (Just C.NChatsList, Vty.KChar '*', _) -> do
@@ -564,7 +559,6 @@ handleTabChat commandChan store ev ve focused k ms =
           unless (Txt.null txt) $ do
             findModel chat.chatModel >>= \case
               Just _model -> do
-                C.stDebug .= show (_model, chat.chatModel)
                 liftIO (store.swAddMessage cid O.User C.SsStreaming chat.chatModel txt) >>= \case
                   Right newMsg -> do
                     C.stChatCurrent .= Just chat {C.chatStreaming = C.SsStreaming}
@@ -675,7 +669,7 @@ handleTabLog _commandChan _ev ve _focused k ms = do
       pass
 
     _ -> do
-      C.stDebug .= show (k, ms)
+      --C.stDebug .= show (k, ms)
       B.zoom C.stLogList $ BL.handleListEventVi BL.handleListEvent ve
 ---------------------------------------------------------------------------------------------------
 

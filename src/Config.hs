@@ -54,6 +54,7 @@ emptyAppConfig = C.AppConfig
   { acModelTag = mempty
   , acDefaultModel = Just mempty
   , acDefaultChat = Just mempty
+  , acAvoidEmojis = False
   }
 
 
