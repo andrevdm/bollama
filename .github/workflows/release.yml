@@ -10,14 +10,14 @@ jobs:
     name: Build Static Linux Binary
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Prepare cache dirs
         run: |
           mkdir -p ~/.cabal/store ~/.cabal/packages dist-newstyle
 
       - name: Cache Cabal store
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cabal/store
@@ -44,7 +44,7 @@ jobs:
           cp $(cabal list-bin bollama-exe) dist-release/bollama-linux
           tar -czvf bollama-linux.tar.gz -C dist-release bollama-linux
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: linux-archive
           path: bollama-linux.tar.gz
@@ -53,10 +53,10 @@ jobs:
     name: Build Windows Binary
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Cache Cabal store
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~\AppData\Roaming\cabal\store
@@ -77,11 +77,11 @@ jobs:
 
       - name: Package Windows binary
         run: |
-          mkdir dist-release
-          cp "$(cabal list-bin bollama-exe)" "dist-release/bollama-windows.exe"
+          mkdir -p dist-release
+          cp "$(cabal list-bin bollama-exe)" dist-release/bollama-windows.exe
           powershell Compress-Archive -Path dist-release\bollama-windows.exe -DestinationPath bollama-windows.zip
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: windows-archive
           path: bollama-windows.zip
@@ -91,12 +91,12 @@ jobs:
     needs: [build-linux, build-windows]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: linux-archive
           path: .
 
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: windows-archive
           path: .
@@ -109,4 +109,3 @@ jobs:
             bollama-windows.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
