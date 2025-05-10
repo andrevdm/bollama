@@ -77,6 +77,13 @@ newInMemStore = do
             Nothing -> m
             Just (c, msgs) ->
               Map.insert msg.msgChatId (c, msg : msgs) m
+
+    , srClearChatInput = \chatId -> do
+        atomically $ TV.modifyTVar' store $ \m ->
+          case Map.lookup chatId m of
+            Nothing -> m
+            Just (c, msgs) ->
+              Map.insert chatId (c { C.chatInput = "" }, msgs) m
     }
 
 
@@ -114,6 +121,7 @@ newStoreWrapper mkStore = do
        , swStreamDone = \c -> streamDone st c >>= evict st
        , swAddStreamedChatContent = addStreamedChatContent st
        , swSaveChat = saveChat st
+       , swClearChatInput = clearChatInput st
 
        , swLog = logger
        }
@@ -171,6 +179,7 @@ newStoreWrapper mkStore = do
             , C.chatModel = chatModel''
             , C.chatParams = chatParams
             , C.chatStreaming = streaming
+            , C.chatInput = ""
             }
 
       modifyMVar'_ st' $ \st -> do
@@ -193,6 +202,7 @@ newStoreWrapper mkStore = do
                          , C.chatModel = chat.chatModel
                          , C.chatUpdatedAt = chat.chatUpdatedAt
                          , C.chatStreaming = chat.chatStreaming
+                         , C.chatInput = chat.chatInput
                          }
              in
              (c2, ms)) chat.chatId st.cache
@@ -344,6 +354,17 @@ newStoreWrapper mkStore = do
         go (chat, ms) = (chat{ C.chatStreaming = C.SsNotStreaming }, ms)
 
 
+    clearChatInput :: MVar' WrapperState -> C.ChatId -> IO (Either Text ())
+    clearChatInput st' chatId = do
+      modifyMVar' st' $ \st -> do
+        case Map.lookup chatId st.cache of
+          Nothing -> pure (st, Right ())
+          Just (chat, ms) -> do
+            let chat2 = chat { C.chatInput = "" }
+            let st2 = st { cache = Map.insert chatId (chat2, ms) st.cache }
+            pure (st2, Right ())
+
+
 
 
 newSqliteStore :: FilePath -> (C.LogLevel -> Text -> IO ()) -> IO (C.Store, C.Logger)
@@ -359,10 +380,10 @@ newSqliteStore dbPath onLog = do
   let store = C.Store
        { srListChats = do
            withConn $ \conn -> do
-             chats :: [(Text, Text, Text, DT.UTCTime, DT.UTCTime, Maybe Int, Maybe Double)] <-
-               Sq.query_ conn "SELECT id, name, model, createdAt, updatedAt, prm_num_ctx, prm_temperature FROM chat order by name"
+             chats :: [(Text, Text, Text, DT.UTCTime, DT.UTCTime, Maybe Int, Maybe Double, Maybe Text)] <-
+               Sq.query_ conn "SELECT id, name, model, createdAt, updatedAt, prm_num_ctx, prm_temperature, chatInput FROM chat order by name"
 
-             pure $ chats <&> \(chatId, chatName, chatModel, createdAt, updatedAt, num_ctx, temp) ->
+             pure $ chats <&> \(chatId, chatName, chatModel, createdAt, updatedAt, num_ctx, temp, chatInput) ->
                C.Chat
                  { C.chatId = C.ChatId chatId
                  , C.chatName = chatName
@@ -374,17 +395,18 @@ newSqliteStore dbPath onLog = do
                      , C._cpContextSize = num_ctx
                      }
                  , C.chatStreaming = C.SsNotStreaming
+                 , C.chatInput = fromMaybe "" chatInput
                  }
 
 
        , srLoadChat = \(C.ChatId chatId) -> do
            withConn $ \conn -> do
-             chat1 :: [(Text, Text, Text, DT.UTCTime, DT.UTCTime, Maybe Int, Maybe Double)] <-
-               Sq.query conn "SELECT id, name, model, createdAt, updatedAt, prm_num_ctx, prm_temperature FROM chat WHERE id = ?" (Sq.Only chatId)
+             chat1 :: [(Text, Text, Text, DT.UTCTime, DT.UTCTime, Maybe Int, Maybe Double, Maybe Text)] <-
+               Sq.query conn "SELECT id, name, model, createdAt, updatedAt, prm_num_ctx, prm_temperature, chatInput FROM chat WHERE id = ?" (Sq.Only chatId)
 
              case chat1 of
                [] -> pure Nothing
-               ((id, name, model, createdAt, updatedAt, num_ctx, temp): _) -> do
+               ((id, name, model, createdAt, updatedAt, num_ctx, temp, chatInput): _) -> do
                  let chat =
                        C.Chat
                          { C.chatId = C.ChatId id
@@ -397,6 +419,7 @@ newSqliteStore dbPath onLog = do
                              , C._cpContextSize = num_ctx
                              }
                          , C.chatStreaming = C.SsNotStreaming
+                         , C.chatInput = fromMaybe "" chatInput
                          }
 
                  msgs1 :: [(Text, Text, Text, DT.UTCTime, Text)] <-
@@ -423,7 +446,7 @@ newSqliteStore dbPath onLog = do
 
        , srSaveChat = \chat -> do
            withConn_ $ \conn -> do
-             Sq.execute conn "INSERT OR REPLACE INTO chat (id, name, model, createdAt, updatedAt, prm_num_ctx, prm_temperature) VALUES (?, ?, ?, ?, ?, ?, ?)"
+             Sq.execute conn "INSERT OR REPLACE INTO chat (id, name, model, createdAt, updatedAt, prm_num_ctx, prm_temperature, chatInput) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
                ( chat.chatId & \(C.ChatId chatId) -> chatId
                , chat.chatName
                , chat.chatModel
@@ -431,6 +454,7 @@ newSqliteStore dbPath onLog = do
                , chat.chatUpdatedAt
                , chat.chatParams._cpContextSize
                , chat.chatParams._cpTemp
+               , chat.chatInput
                )
 
        , srSaveChatMessage = \msg -> do
@@ -443,6 +467,10 @@ newSqliteStore dbPath onLog = do
                , msg.msgCreatedAt
                , msg.msgText
                )
+
+       , srClearChatInput = \chatId -> do
+            withConn_ $ \conn -> do
+              Sq.execute conn "UPDATE chat SET chatInput = ? WHERE id = ?" (Nothing :: Maybe Text, chatId & \(C.ChatId cid) -> cid)
        }
 
   let logger =
@@ -470,7 +498,15 @@ newSqliteStore dbPath onLog = do
           , "pragma journal_size_limit = 6144000;"
           ]
 
-        traverse (Sq.execute_ conn) createScripts
+        traverse_ (Sq.execute_ conn) createScripts
+        traverse_ (migrate conn) migrationScripts
+
+    migrate :: Sq.Connection -> (Text, Sq.Query) -> IO ()
+    migrate conn (version, query) = do
+      res :: [Sq.Only Text] <- Sq.query conn "SELECT id FROM migrate WHERE id = ?" (Sq.Only version)
+      when (null res) $ do
+        Sq.execute_ conn query
+        Sq.execute conn "INSERT INTO migrate (id) VALUES (?)" (Sq.Only version)
 
 
     insertLog sessionId level' msg = do
@@ -554,8 +590,22 @@ newSqliteStore dbPath onLog = do
            );
        |]
 
+     , [r| CREATE TABLE IF NOT EXISTS migrate (
+             id         text      PRIMARY KEY
+           );
+       |]
+
      , "CREATE INDEX IF NOT EXISTS idx_chat_message_chat_id ON chatMessage(chatId);"
      , "CREATE INDEX IF NOT EXISTS idx_chat_message_created_at ON chatMessage(createdAt);"
      , "CREATE INDEX IF NOT EXISTS ix_log_created_at ON log(createdAt);"
      , "CREATE INDEX IF NOT EXISTS ix_log_created_at ON log(sessionId);"
      ]
+
+
+    migrationScripts :: [(Text, Sq.Query)]
+    migrationScripts =
+      [  ( "0001"
+         , [r| alter table chat add column chatInput text null;
+           |]
+         )
+      ]

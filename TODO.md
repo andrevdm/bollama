@@ -1,19 +1,18 @@
 # TODO
+ - ! cancel current chat, offer to kill model. Allow next question, somehow need to discard any streamed input for that stream id
  - Update chat updatedAt field on change & resort chat list
  - key so sort by name/param size in model list and model popup
  - arg to select initial tab, and maybe chat too
- - cancel current chat, offer to kill model. Allow next question, somehow need to discard any streamed input for that stream id
- - popup stack? Probably not needed
  - evict timer + test eviction
- - log filtering?
  - help pages + README
  - scroll bar clicking
  - toggle show thinking
- - model update
- - chat params: https://github.com/ollama/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values
- - theme.csv does not seem to work e.g. form invalid
  - cmd arg to set URL
  - switching chats should keep the current input text in a cache
  - sort chat edit list
+ - correctly handle renaming model to a #temp name or existing chat name
  - options UI
    - support unicode
+   - ollama url
+ - ? chat params: https://github.com/ollama/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values
+ - ? popup stack? Probably not needed

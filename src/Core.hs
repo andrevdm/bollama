@@ -153,6 +153,7 @@ data Chat = Chat
   , chatModel :: !Text
   , chatStreaming :: !StreamingState
   , chatParams :: !ChatParams
+  , chatInput :: !Text
   } deriving stock (Show, Eq)
 
 data ChatParams = ChatParams
@@ -175,6 +176,7 @@ data Store = Store
   , srLoadChat :: !(ChatId -> IO (Maybe (Chat, [ChatMessage])))
   , srSaveChat :: !(Chat -> IO ())
   , srSaveChatMessage :: !(ChatMessage -> IO ())
+  , srClearChatInput :: !(ChatId -> IO ())
   }
 
 data StoreWrapper = StoreWrapper
@@ -188,6 +190,7 @@ data StoreWrapper = StoreWrapper
   , swAddMessage :: !(ChatId -> O.Role -> StreamingState -> Text -> Text -> IO (Either Text ChatMessage))
   , swStreamDone :: !(ChatId -> IO ())
   , swAddStreamedChatContent :: !(ChatId -> MessageId -> O.Role -> Text -> IO (Either Text ()))
+  , swClearChatInput :: !(ChatId -> IO (Either Text ()))
 
   , swLog :: !Logger
   }

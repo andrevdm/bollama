@@ -275,23 +275,6 @@ handleAppEventGotTime _commandChan t = do
   C.stTime .= t
 
 
-handleChatUpdated :: C.ChatId -> B.EventM C.Name C.UiState ()
-handleChatUpdated chatId  = do
-  use C.stChatCurrent >>= \case
-    Just currentChat | currentChat.chatId == chatId -> do
-      store <- use C.stStore
-      (chat2, ms) <- liftIO store.swGetCurrent >>= \case
-        Nothing -> pure (Nothing, [])
-        Just (_, chat2, ms') -> pure (Just chat2, ms')
-
-      C.stChatCurrent .= Just (fromMaybe currentChat chat2)
-      C.stChatMsgs .= reverse ms
-      B.vScrollToEnd (B.viewportScroll C.NChatScroll)
-
-    _ -> do
-      pass
-
-
 handleChatStreamResponseDone :: BCh.BChan C.Command -> C.ChatId -> B.EventM C.Name C.UiState ()
 handleChatStreamResponseDone _commandChan chatId = do
   -- Save to store
@@ -302,6 +285,16 @@ handleChatStreamResponseDone _commandChan chatId = do
   --  Some updates may have been suppressed by the debounce
   --  This also updates the stCurrent's streaming status
   handleChatUpdated chatId
+
+
+handleChatUpdated :: C.ChatId -> B.EventM C.Name C.UiState ()
+handleChatUpdated chatId  = do
+  use C.stChatCurrent >>= \case
+    Just currentChat | currentChat.chatId == chatId -> do
+      changeChatToStoreCurrent
+
+    _ -> do
+      pass
 ---------------------------------------------------------------------------------------------------
 
 
@@ -394,7 +387,7 @@ handleTabModels commandChan _ev ve focused k ms =
               C.stTab .= C.TabChat
               C.stFocusChat %= BF.focusSetCurrent C.NChatInputEdit
               liftIO $ store.swSaveChat chat2
-              liftIO . BCh.writeBChan commandChan $ C.CmdRefreshChatsList (Just . Right $ chat2.chatId)
+              liftIO . BCh.writeBChan commandChan $ C.CmdRefreshChatsList (Just . Right $ chat2.chatId) --TODO dont send message just call change chat
 
 
     -- Use current model for a new chat
@@ -563,6 +556,7 @@ handleTabChat commandChan store ev ve focused k ms =
                   Right newMsg -> do
                     C.stChatCurrent .= Just chat {C.chatStreaming = C.SsStreaming}
                     C.stChatInput . BE.editContentsL %= TxtZ.clearZipper
+                    _ <- liftIO $ store.swClearChatInput cid
                     handleChatUpdated cid
                     liftIO . BCh.writeBChan commandChan $ C.CmdChatSend cid newMsg
 
@@ -601,31 +595,43 @@ startNewChat commandChan defaultModel = do
 
 handleChatSelectionUpdate :: B.EventM C.Name C.UiState ()
 handleChatSelectionUpdate = do
-  selectedChat' <- use (C.stChatsList . to BL.listSelectedElement)
-  prevActive' <- use C.stChatCurrent
+  saveStoreCurrentChat
+
+  store <- use C.stStore
+  selectedChat <- use (C.stChatsList . to BL.listSelectedElement)
+  _ <- liftIO $ store.swSetCurrent ((C.chatId) . snd <$> selectedChat)
+
+  changeChatToStoreCurrent
+
+
+saveStoreCurrentChat :: B.EventM C.Name C.UiState ()
+saveStoreCurrentChat = do
+  store <- use C.stStore
+  liftIO store.swGetCurrent >>= \case
+    Nothing -> pass
+    Just (_, chat1, _) -> do
+      st <- B.get
+      let chat2 = chat1
+            { C.chatInput = st._stChatInput ^. BE.editContentsL . to TxtZ.getText . to Txt.unlines . to Txt.strip
+            }
+      liftIO $ store.swSaveChat chat2
+
+
+changeChatToStoreCurrent :: B.EventM C.Name C.UiState ()
+changeChatToStoreCurrent = do
   store <- use C.stStore
 
-  case (selectedChat', prevActive') of
-    -- No change, but update to make sure we have the latest settings
-    (Just (_, selectedChat), Just prevChatId) | selectedChat.chatId == prevChatId.chatId -> do
-      handleChatUpdated selectedChat.chatId
+  liftIO store.swGetCurrent >>= \case
+    Just (_, storeCurrentChat, ms) -> do
+      C.stChatCurrent .= Just storeCurrentChat
+      C.stChatInput . BE.editContentsL .= TxtZ.textZipper [storeCurrentChat.chatInput] Nothing
+      C.stChatMsgs .= reverse ms
+      B.vScrollToEnd (B.viewportScroll C.NChatScroll)
 
-    -- Nothing selected, clear current
-    (Nothing, _) -> do
+    Nothing -> do
       C.stChatCurrent .= Nothing
+      C.stChatInput . BE.editContentsL .= TxtZ.textZipper [] Nothing
       C.stChatMsgs .= []
-      _ <- liftIO $ store.swSetCurrent Nothing
-      pass
-
-    (Just (_, selectedChat), _)-> do
-      liftIO (store.swSetCurrent (Just selectedChat.chatId)) >>= \case
-        Just (_, _) -> do
-          C.stChatCurrent .= Just selectedChat
-          handleChatUpdated selectedChat.chatId
-
-        Nothing -> do
-          C.stChatCurrent .= Nothing
-          C.stChatMsgs .= []
 ---------------------------------------------------------------------------------------------------
 
 
