@@ -62,6 +62,7 @@ LLM chats
 - `tab`  => Switch between chat input and chats list
 - `Ctrl-n` => New chat. Start name with `#` for a temporary chat
 - `Ctrl-e` => Edit chat name & model
+- `Ctrl-t` => Toggle show thinking
 - `PageUp` => Scroll chat history up
 - `PageDown` => Scroll chat history up
 - `Ctrl-PageUp` => Scroll chat history to top

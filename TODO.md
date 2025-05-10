@@ -8,7 +8,6 @@
  - scroll bar clicking
  - toggle show thinking
  - cmd arg to set URL
- - switching chats should keep the current input text in a cache
  - sort chat edit list
  - correctly handle renaming model to a #temp name or existing chat name
  - options UI

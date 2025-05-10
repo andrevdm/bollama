@@ -490,6 +490,10 @@ handleTabChat commandChan store ev ve focused k ms =
     (_, Vty.KPageDown, [Vty.MCtrl]) -> do
       B.vScrollToEnd (B.viewportScroll C.NChatScroll)
 
+    (_, Vty.KChar 't', [Vty.MCtrl]) -> do
+      C.stDebug .= "Toggle thinking"
+      C.stShowThinking %= not
+
     (Just C.NChatInputEdit, Vty.KChar 'r', [Vty.MCtrl]) -> do
       runInput
 

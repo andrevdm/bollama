@@ -103,6 +103,7 @@ data UiState = UiState
   , _stLog :: !Logger
   , _stAttrMap :: !B.AttrMap
   , _stErrorMessage :: !(Maybe Text)
+  , _stShowThinking :: !Bool
 
   , _stModels :: ![ModelItem]
   , _stModelsList :: !(BL.List Name ModelItem)

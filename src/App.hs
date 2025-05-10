@@ -83,6 +83,7 @@ runTui = do
        , _stLog = store.swLog
        , _stAttrMap = attrMap
        , _stErrorMessage = Nothing
+       , _stShowThinking = False
 
        , _stModels = []
        , _stModelsList = BL.list C.NModelsList mempty 1
