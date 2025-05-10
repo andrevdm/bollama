@@ -36,13 +36,13 @@ jobs:
             -v ${{ github.workspace }}/dist-newstyle:/workspace/dist-newstyle \
             -w /workspace \
             andrevdm/ghc-musl:ghc_9_12_2_musl \
-            bash -c "cabal update && cabal build --enable-executable-static"
-
-      - name: Package Linux binary
-        run: |
-          mkdir -p dist-release
-          cp $(cabal list-bin bollama-exe) dist-release/bollama-linux
-          tar -czvf bollama-linux.tar.gz -C dist-release bollama-linux
+            bash -c "\
+              cabal update && \
+              cabal build --enable-executable-static && \
+              mkdir -p dist-release && \
+              cp \$(cabal list-bin bollama-exe) dist-release/bollama-linux && \
+              tar -czvf bollama-linux.tar.gz -C dist-release bollama-linux \
+            "
 
       - uses: actions/upload-artifact@v4
         with:
