@@ -5,6 +5,10 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write   # gives the token ability to create releases, upload assets, etc.
+  packages: write   # if you also want to publish packages via the workflow
+
 jobs:
   build-linux:
     name: Build Static Linux Binary
