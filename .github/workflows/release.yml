@@ -65,7 +65,7 @@ jobs:
           restore-keys: |
             windows-cabal-
 
-      - uses: haskell/actions/setup@v2
+      - uses: haskell-actions/setup
         with:
           ghc-version: '9.12.2'
           cabal-version: '3.14.2.0'
