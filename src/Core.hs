@@ -50,6 +50,8 @@ data Name
   | VScrollClick B.ClickableScrollbarElement Name
   --
   | NHelpScroll
+  --
+  | NPopContextList
   deriving stock (Show, Eq, Ord)
 
 
@@ -149,6 +151,11 @@ data UiState = UiState
   , _stPopConfirmTitle :: !(Maybe Text)
   , _stPopConfirmDetail :: !(Maybe Text)
   , _stPopConfirmOnOk :: !(B.EventM Name UiState ())
+
+  , _stPopContextFocus :: !(BF.FocusRing Name)
+  , _stPopContextTitle :: !(Maybe Text)
+  , _stPopContextList :: !(BL.List Name (Text, Text))
+  , _stPopContextOnOk :: !(Text -> B.EventM Name UiState ())
   }
 
 data Chat = Chat
@@ -193,6 +200,7 @@ data Store = Store
   , srSaveChat :: !(Chat -> IO ())
   , srSaveChatMessage :: !(ChatMessage -> IO ())
   , srClearChatInput :: !(ChatId -> IO ())
+  , srDeleteAllChatMessages :: !(ChatId -> IO ())
   }
 
 data StoreWrapper = StoreWrapper
@@ -207,6 +215,7 @@ data StoreWrapper = StoreWrapper
   , swStreamDone :: !(ChatId -> Maybe MessageDetail -> IO ())
   , swAddStreamedChatContent :: !(ChatId -> MessageId -> O.Role -> Text -> IO (Either Text ()))
   , swClearChatInput :: !(ChatId -> IO (Either Text ()))
+  , swDeleteAllChatMessages :: !(ChatId -> IO ())
 
   , swLog :: !Logger
   }
@@ -254,6 +263,7 @@ data Popup
   | PopupPrompt
   | PopupConfirm
   | PopupHelp
+  | PopupContext
   deriving stock (Show, Eq, Ord, Bounded, Enum)
 
 

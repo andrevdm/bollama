@@ -158,6 +158,11 @@ runTuiMain = do
        , _stPopConfirmTitle = Nothing
        , _stPopConfirmDetail = Nothing
        , _stPopConfirmOnOk = pass
+
+       , _stPopContextTitle = Nothing
+       , _stPopContextFocus = BF.focusRing [C.NPopContextList, C.NDialogOk, C.NDialogCancel]
+       , _stPopContextList = BL.list C.NPopContextList mempty 1
+       , _stPopContextOnOk = const pass
        }
 
   _finalState <- B.customMain @C.Name initialVty buildVty (Just eventChan) app initialState

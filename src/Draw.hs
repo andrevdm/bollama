@@ -64,6 +64,7 @@ drawUI st =
             Just C.PopupPrompt -> drawPopupPrompt st
             Just C.PopupConfirm -> drawPopupConfirm st
             Just C.PopupHelp -> drawPopupHelp st
+            Just C.PopupContext -> drawPopupContext st
 
   -- Draw the main UI
   , drawTabs st
@@ -665,6 +666,40 @@ drawPopupHelp st =
   B.padAll 1 $
   B.withClickableVScrollBars C.VScrollClick . B.withVScrollBarHandles . B.withVScrollBars B.OnRight $
   B.viewport C.NHelpScroll B.Vertical $ H.renderHelp scrollTo H.helpContent
+---------------------------------------------------------------------------------------------------
+
+
+
+
+---------------------------------------------------------------------------------------------------
+-- Popup Context Menu
+---------------------------------------------------------------------------------------------------
+drawPopupContext :: C.UiState -> B.Widget C.Name
+drawPopupContext st =
+  B.vLimit 30 $
+  B.hLimit 80 $
+  borderWithLabel' True (fromMaybe "Context Menu" st._stPopContextTitle) $
+  B.padAll 1 $
+  ( BL.renderList (\_ (_n, v) -> B.txt v) (BF.focusGetCurrent st._stPopContextFocus == Just C.NPopContextList) st._stPopContextList
+    <=>
+    ( B.padTop (B.Pad 2) . BC.hCenter $
+      let
+        (attrOk, attrBorderOk) =
+          if BF.focusGetCurrent st._stPopContextFocus == Just C.NDialogOk
+          then (B.attrName "popupButtonOkFocused", BBS.unicodeBold)
+          else (B.attrName "popupButtonOk", BBS.unicode)
+
+        (attrCancel, attrBorderCancel) =
+          if BF.focusGetCurrent st._stPopContextFocus == Just C.NDialogCancel
+          then (B.attrName "popupButtonCancelFocused", BBS.unicodeBold)
+          else (B.attrName "popupButtonCancel", BBS.unicode)
+      in
+      (     B.withBorderStyle attrBorderOk (BB.border (B.withAttr attrOk . B.vLimit 1 . B.hLimit 8 . BC.hCenter $ B.txt "Yes"))
+        <+> B.txt " "
+        <+> B.withBorderStyle attrBorderCancel (BB.border (B.withAttr attrCancel . B.vLimit 1 . B.hLimit 8 . BC.hCenter $ B.txt "No"))
+      )
+    )
+  )
 ---------------------------------------------------------------------------------------------------
 
 

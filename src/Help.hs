@@ -165,7 +165,8 @@ helpContent =
                 [ "Shows the list of chats."
                 ]
             , HlpKeys "Chat Shortcuts - global"
-                [ ("Ctrl-n", "New chat. Start name with `#` for a temporary chat")
+                [ ("F10", "Context menu")
+                , ("Ctrl-n", "New chat. Start name with `#` for a temporary chat")
                 , ("Ctrl-e", "Edit chat name & model")
                 , ("Ctrl-t", "Toggle show thinking")
                 , ("Ctrl-p", "Toggle show message details")

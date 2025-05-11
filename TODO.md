@@ -11,4 +11,3 @@
  - options UI
  - ? chat params: https://github.com/ollama/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values
  - ? popup stack? Probably not needed
- - popup menu for context actions, esp for chat

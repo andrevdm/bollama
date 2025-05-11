@@ -85,6 +85,13 @@ newInMemStore = do
             Nothing -> m
             Just (c, msgs) ->
               Map.insert chatId (c { C.chatInput = "" }, msgs) m
+
+    , srDeleteAllChatMessages = \chatId -> do
+        atomically $ TV.modifyTVar' store $ \m ->
+          case Map.lookup chatId m of
+            Nothing -> m
+            Just (c, _) ->
+              Map.insert chatId (c, []) m
     }
 
 
@@ -123,6 +130,7 @@ newStoreWrapper mkStore = do
        , swAddStreamedChatContent = addStreamedChatContent st
        , swSaveChat = saveChat st
        , swClearChatInput = clearChatInput st
+       , swDeleteAllChatMessages = \c -> deleteAllChatMessages st c >>= evict st
 
        , swLog = logger
        }
@@ -131,6 +139,17 @@ newStoreWrapper mkStore = do
 
 
   where
+    deleteAllChatMessages :: MVar' WrapperState -> C.ChatId -> IO ()
+    deleteAllChatMessages st' chatId = do
+      modifyMVar'_ st' $ \st -> do
+        -- Delete all messages from the store
+        st.store.srDeleteAllChatMessages chatId
+
+        -- Remove the chat from the cache
+        let cache2 = Map.delete chatId st.cache
+        pure $ st { cache = cache2 }
+
+
     listChats :: MVar' WrapperState -> IO [C.Chat]
     listChats st' = do
       withMVar' st' $ \st -> do
@@ -520,6 +539,10 @@ newSqliteStore dbPath onLog = do
        , srClearChatInput = \chatId -> do
             withConn_ $ \conn -> do
               Sq.execute conn "UPDATE chat SET chatInput = ? WHERE id = ?" (Nothing :: Maybe Text, chatId & \(C.ChatId cid) -> cid)
+
+       , srDeleteAllChatMessages = \chatId -> do
+            withConn_ $ \conn -> do
+              Sq.execute conn "DELETE FROM chatMessage WHERE chatId = ?" (chatId & \(C.ChatId cid) -> (Sq.Only cid))
        }
 
   let logger =

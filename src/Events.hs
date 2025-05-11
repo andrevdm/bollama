@@ -79,6 +79,7 @@ handleEvent commandChan eventChan ev = do
                 Just C.PopupPrompt -> handleEventPopupPrompt commandChan ev ve
                 Just C.PopupConfirm -> handleEventPopupConfirm commandChan ev ve
                 Just C.PopupHelp -> handleEventPopupHelp commandChan ev ve
+                Just C.PopupContext -> handleEventPopupContext commandChan ev ve
                 -- Otherwise the main UI gets the event
                 Nothing -> handleEventNoPopup commandChan eventChan ev ve
 
@@ -488,6 +489,9 @@ handleTabChat commandChan eventChan store ev ve focused k ms =
     (_, Vty.KChar 'e', [Vty.MCtrl]) -> do
         editModel "Edit chat"
 
+    (_, Vty.KFun 10, []) -> do
+      contextMenu
+
     (_, Vty.KPageUp, []) -> do
       B.vScrollPage (B.viewportScroll C.NChatScroll) B.Up
 
@@ -539,6 +543,47 @@ handleTabChat commandChan eventChan store ev ve focused k ms =
     _ -> pass
 
   where
+    contextMenu = do
+      let menuItems =
+           [ ("new", "New chat")
+           , ("edit", "Edit chat")
+           , ("think", "Toggle thinking")
+           , ("detail", "Toggle message detail")
+           , ("stop", "Stop chat")
+           , ("clear", "Delete messages")
+           ]
+      C.stPopup .= Just C.PopupContext
+      C.stPopContextTitle .= Just "Chat"
+      C.stPopContextList .= BL.list C.NPopContextList (V.fromList menuItems) 1
+      C.stPopContextOnOk .= \case
+        "new" -> startNewChat commandChan Nothing
+        "edit" -> editModel "Edit chat"
+        "think" -> C.stShowThinking %= not
+        "detail" -> C.stShowMessageDetail %= not
+        "stop" -> stopChat
+        "clear" -> clearChatMessages
+        _ -> pass
+
+    clearChatMessages = do
+      C.stPopup .= Just C.PopupConfirm
+      C.stPopConfirmTitle .= Just "Are you sure you want to remove all messages for this chat?"
+      C.stPopConfirmDetail .= Nothing
+      C.stPopConfirmOnOk .= do
+        use (C.stChatsList . to BL.listSelectedElement) >>= \case
+          Nothing -> pass
+          Just (_, chat) -> do
+            catch
+              (do
+                 st <- B.get
+                 liftIO $ st._stStore.swDeleteAllChatMessages chat.chatId
+                 liftIO . BCh.writeBChan commandChan $ C.CmdRefreshChatsList (Just . Right $ chat.chatId)
+              )
+              (\(e :: SomeException) -> do
+                st <- B.get
+                liftIO $ st._stLog.lgError $ "Error deleting chat messages: " <> show e
+              )
+
+
     stopChat = do
       use (C.stChatsList . to BL.listSelectedElement) >>= \case
         Nothing -> pass
@@ -1117,3 +1162,60 @@ handleEventPopupHelp _commandChan _ev ve = do
 
     _ -> pass
 ----------------------------------------------------------------------------------------------------------------------
+
+
+
+----------------------------------------------------------------------------------------------------------------------
+-- Context Menu Popup
+----------------------------------------------------------------------------------------------------------------------
+handleEventPopupContext :: BCh.BChan C.Command -> B.BrickEvent C.Name C.UiEvent -> Vty.Event -> B.EventM C.Name C.UiState ()
+handleEventPopupContext _commandChan _ev ve = do
+  st <- B.get
+  let focused = BF.focusGetCurrent st._stPopContextFocus
+
+  case ve of
+    Vty.EvKey k ms -> do
+      case (focused, k, ms) of
+        (_, Vty.KChar 'q', [Vty.MCtrl]) -> do
+          C.stPopup .= Nothing
+
+        (_, Vty.KEsc, []) -> do
+          C.stPopup .= Nothing
+
+        (_, Vty.KChar '\t', []) -> do
+          C.stPopContextFocus %= BF.focusNext
+
+        (_, Vty.KBackTab, []) -> do
+          C.stPopContextFocus %= BF.focusPrev
+
+        (Just C.NPopContextList, Vty.KEnter, []) -> do
+          ok st
+
+        (Just C.NPopContextList, _, _) -> do
+          B.zoom C.stPopContextList $ BL.handleListEventVi BL.handleListEvent ve
+
+        (Just C.NDialogOk, Vty.KEnter, []) ->
+          ok st
+
+        (Just C.NDialogCancel, Vty.KEnter, []) -> do
+          clear
+
+        _ -> pass
+
+    _ -> pass
+
+  where
+    ok st = do
+      case BL.listSelectedElement st._stPopContextList of
+        Nothing -> pass
+        Just (_, (n, _)) -> do
+          clear
+          st._stPopContextOnOk n
+
+    clear = do
+      C.stPopup .= Nothing
+      C.stPopContextTitle .= Nothing
+      C.stPopContextList .= BL.list C.NPopContextList (V.fromList []) 1
+      C.stPopContextFocus %= BF.focusSetCurrent C.NPopContextList
+      C.stPopContextOnOk .= const pass
+ ----------------------------------------------------------------------------------------------------------------------
