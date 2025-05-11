@@ -575,6 +575,7 @@ handleTabChat commandChan eventChan store ev ve focused k ms =
             catch
               (do
                  st <- B.get
+                 C.stChatInput . BE.editContentsL %= TxtZ.clearZipper
                  liftIO $ st._stStore.swDeleteAllChatMessages chat.chatId
                  liftIO . BCh.writeBChan commandChan $ C.CmdRefreshChatsList (Just . Right $ chat.chatId)
               )

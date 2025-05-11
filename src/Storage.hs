@@ -91,7 +91,7 @@ newInMemStore = do
           case Map.lookup chatId m of
             Nothing -> m
             Just (c, _) ->
-              Map.insert chatId (c, []) m
+              Map.insert chatId (c {C.chatInput = ""}, []) m
     }
 
 
@@ -543,6 +543,7 @@ newSqliteStore dbPath onLog = do
        , srDeleteAllChatMessages = \chatId -> do
             withConn_ $ \conn -> do
               Sq.execute conn "DELETE FROM chatMessage WHERE chatId = ?" (chatId & \(C.ChatId cid) -> (Sq.Only cid))
+              Sq.execute conn "update chat set chatInput = null WHERE id = ?" (chatId & \(C.ChatId cid) -> (Sq.Only cid))
        }
 
   let logger =
