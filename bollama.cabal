@@ -3,7 +3,8 @@ name: bollama
 version: 0.1.0.9
 -- synopsis:
 -- description:
-license: NONE
+license: MIT
+license-file:        LICENSE
 author: Andre
 maintainer: andre@andrevdm.com
 copyright: 2025 Andre Van Der Merwe
