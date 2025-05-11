@@ -1,0 +1,115 @@
+name: Build and Release Binaries
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write   # gives the token ability to create releases, upload assets, etc.
+  packages: write   # if you also want to publish packages via the workflow
+
+jobs:
+  build-linux:
+    name: Build Static Linux Binary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare cache dirs
+        run: |
+          mkdir -p ~/.cabal/store ~/.cabal/packages dist-newstyle
+
+      - name: Cache Cabal store
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cabal/store
+            ~/.cabal/packages
+            dist-newstyle
+          key: linux-cabal-${{ hashFiles('**/*.cabal') }}
+          restore-keys: |
+            linux-cabal-
+
+      - name: Build using andrevdm/ghc-musl
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -v $HOME/.cabal/store:/root/.cabal/store \
+            -v $HOME/.cabal/packages:/root/.cabal/packages \
+            -v ${{ github.workspace }}/dist-newstyle:/workspace/dist-newstyle \
+            -w /workspace \
+            andrevdm/ghc-musl:ghc_9_12_2_musl \
+            bash -c "\
+              cabal update && \
+              cabal build --enable-executable-static && \
+              mkdir -p dist-release && \
+              cp \$(cabal list-bin bollama-exe) dist-release/bollama-linux && \
+              tar -czvf bollama-linux.tar.gz -C dist-release bollama-linux \
+            "
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-archive
+          path: bollama-linux.tar.gz
+
+  build-windows:
+    name: Build Windows Binary
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Cabal store
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\AppData\Roaming\cabal\store
+            dist-newstyle
+          key: windows-cabal-${{ hashFiles('**/*.cabal') }}
+          restore-keys: |
+            windows-cabal-
+
+      - uses: haskell-actions/setup@v2
+        with:
+          ghc-version: '9.12.2'
+          cabal-version: '3.14.2.0'
+
+      - name: Build Windows binary
+        run: |
+          cabal update
+          cabal build
+
+      - name: Package Windows binary
+        run: |
+          mkdir -p dist-release
+          cp "$(cabal list-bin bollama-exe)" dist-release/bollama-windows.exe
+          powershell Compress-Archive -Path dist-release\bollama-windows.exe -DestinationPath bollama-windows.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-archive
+          path: bollama-windows.zip
+
+  release:
+    name: Create GitHub Release
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-archive
+          path: .
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-archive
+          path: .
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            bollama-linux.tar.gz
+            bollama-windows.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

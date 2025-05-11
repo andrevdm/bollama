@@ -1,0 +1,94 @@
+cabal-version: 3.4
+name: bollama
+version: 0.1.0.9
+-- synopsis:
+-- description:
+license: NONE
+author: Andre
+maintainer: andre@andrevdm.com
+copyright: 2025 Andre Van Der Merwe
+category: None
+build-type: Simple
+extra-source-files: README.md
+common common-options
+  build-depends:
+    base >= 4.20 && <5
+  default-language:
+    GHC2024
+
+common common-ghc-options-ide
+  ghc-options: -fwrite-ide-info -hiedir=.hie
+
+common common-ghc-options
+  ghc-options: -Wall -Wimplicit-prelude -Wincomplete-uni-patterns -Wincomplete-record-updates -Wcompat -Wredundant-constraints -Wnoncanonical-monad-instances -Widentities -fhide-source-paths -Wpartial-fields -fhide-source-paths -freverse-errors -Werror=incomplete-patterns
+
+library
+  import: common-options
+  import: common-ghc-options
+  import: common-ghc-options-ide
+
+  hs-source-dirs: src
+  default-language: GHC2024
+  exposed-modules:
+    App,
+    Config,
+    Core,
+    Draw,
+    Events,
+    Help,
+    Storage,
+    Utils
+  other-modules:
+    Paths_bollama
+  build-depends:
+    base >= 4.20 && < 5,
+    verset,
+    aeson,
+    aeson-pretty,
+    ansi-terminal,
+    async,
+    auto-update,
+    base64-bytestring,
+    brick,
+    bytestring,
+    colour,
+    containers,
+    directory,
+    emojis,
+    filepath,
+    haskeline,
+    lens,
+    mtl,
+    ollama-haskell,
+    pretty-simple,
+    raw-strings-qq,
+    safe-exceptions,
+    strict-mutable-base,
+    stm,
+    sqlite-simple,
+    text,
+    text-zipper,
+    time,
+    transformers,
+    unliftio,
+    unliftio-core,
+    uuid,
+    unidecode,
+    vector,
+    vty,
+    vty-crossplatform
+
+
+
+executable bollama-exe
+  import: common-options
+  import: common-ghc-options
+  import: common-ghc-options-ide
+  ghc-options: -threaded
+  default-language: GHC2024
+  hs-source-dirs: app
+  main-is: Main.hs
+  build-depends:
+    bollama,
+    base,
+    verset
