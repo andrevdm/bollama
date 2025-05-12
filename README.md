@@ -1,3 +1,5 @@
+
+
 # BOllama
 
 Simple Ollama TUI
@@ -108,7 +110,7 @@ NB this is formatted better in the app itself, this is here for reference only
 <div style='margin-left: 15px'>
 
 Bollama is a simple TUI for Ollama.
-  version: 0.1.0.9 beta
+  version: 0.1.0.12 beta
 
 
 
@@ -205,6 +207,7 @@ Shows the list of chats.
 
 | key | action |
 | --- | --- |
+| F10 | Context menu |
 | Ctrl-n | New chat. Start name with `#` for a temporary chat |
 | Ctrl-e | Edit chat name & model |
 | Ctrl-t | Toggle show thinking |
@@ -217,6 +220,8 @@ Shows the list of chats.
 
 
 
+
+Note that when editing a chat, you may not change from a temp chat to a non-temp chat or vice versa.
 
 
 
@@ -336,7 +341,7 @@ Where:
 
 - colours are either a #hex-code or a name. Known names are show on the `Colours` tab
     See https://rich.readthedocs.io/en/stable/appendix/colors.html
-- true colour is supported if your terminal supports it and has the correct terminfo
+- true colour is supported if your terminal supports it and has the correct terminfo 
     (e.g `TERM=tmux-256color` or `TERM=xterm-256color` and `COLORTERM=truecolor`).
     See https://github.com/termstandard/colors
 
@@ -439,5 +444,4 @@ It looks something like this
 
 
 ---
-
 

@@ -176,15 +176,14 @@ helpContent =
                 , ("Ctrl-PgUp", "Scroll chat history to top")
                 , ("Ctrl-PgDown", "Scroll chat history to end")
                 ]
+            , HlpText
+                [ "Note that when editing a chat, you may not change from a temp chat to a non-temp chat or vice versa."
+                ]
             , HlpKeys "Chat Shortcuts - chat input"
                 [ ("Ctrl-s", "Send the current message")
                 ]
             , HlpKeys "Chat Shortcuts - chats list"
                 [ ("*", "Set as the default chat")
-                ]
-
-            , HlpText
-                [ "Note that when editing a chat, you may not change from a temp chat to a non-temp chat or vice versa."
                 ]
             ]
 
