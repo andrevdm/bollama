@@ -518,12 +518,21 @@ renderPopChatEditModel origSelected' selected item =
 mkPopChatEditForm :: C.ChatEditInfo -> BFm.Form C.ChatEditInfo C.UiEvent C.Name
 mkPopChatEditForm cei =
   BFm.newForm
-    [ ((col 15 "Name:" "popupHeader") <+>) @@= editTextFieldWithValidate C.ceiName C.NPopChatEditFormName (not . Txt.null)
+    [ ((col 15 "Name:" "popupHeader") <+>) @@= editTextFieldWithValidate C.ceiName C.NPopChatEditFormName (\n -> (not . Txt.null $ n) && isNameValid n)
     , ((col 15 "Context:" "popupHeader") <+>) @@= editMaybeFieldWithValidate (C.ceiParams . C.cpContextSize) C.NPopChatEditFormCtx (readMaybe @Int . Txt.unpack) show
     , ((col 15 "Temperature:" "popupHeader") <+>) @@= editMaybeFieldWithValidate (C.ceiParams . C.cpTemp) C.NPopChatEditFormTemp (readMaybe @Double . Txt.unpack) show
     , ((col 15 "Model:" "popupHeader") <+>) @@= BFm.listField (\s -> V.fromList s._ceiModels) C.ceiSelectedModel (renderPopChatEditModel cei._ceiSelectedModel) 1 C.NPopChatEditFormModels
     ]
     cei
+  where
+    isNameValid newName' =
+      let oldName = Txt.strip cei._ceiName
+          newName = Txt.strip newName'
+      in
+      if | Txt.null oldName -> True
+         | Txt.isInfixOf "#" oldName && Txt.isInfixOf "#" newName -> True
+         | not (Txt.isInfixOf "#" oldName) && not (Txt.isInfixOf "#" newName) -> True
+         | otherwise -> False
 
 
 editFieldWithValidate :: forall n a s e. (Ord n, Show n) => Lens' s a -> n -> (Text -> Maybe a) -> (a -> Text) -> s -> BFm.FormFieldState s e n

@@ -182,6 +182,10 @@ helpContent =
             , HlpKeys "Chat Shortcuts - chats list"
                 [ ("*", "Set as the default chat")
                 ]
+
+            , HlpText
+                [ "Note that when editing a chat, you may not change from a temp chat to a non-temp chat or vice versa."
+                ]
             ]
 
        , HlpSection 2 "Colours"
