@@ -273,6 +273,7 @@ helpContent =
               , "    \"avoid_emojis\": false,"
               , "    \"default_tab\": \"chat\","
               , "    \"ollama_url\": \"http://localhost:11434\""
+              , "    \"allow_mouse\": \"true\""
               , "}"
               ]
             ]

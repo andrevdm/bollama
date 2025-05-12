@@ -15,6 +15,7 @@ module Events
 import           Verset
 
 import Brick qualified as B
+import Brick.Main qualified as BM
 import Brick.BChan qualified as BCh
 import Brick.Forms qualified as BFm
 import Brick.Focus qualified as BF
@@ -38,6 +39,7 @@ import Data.Time as DT
 import Data.Vector qualified as V
 import Graphics.Vty qualified as Vty
 import Ollama qualified as O
+import System.Hclip qualified as Clip
 
 import Config qualified as Cfg
 import Core qualified as C
@@ -56,15 +58,8 @@ handleEvent commandChan eventChan ev = do
         -- App events are global and must always be handled
         B.AppEvent ae -> handleAppEvent commandChan ae
 
-        -- Handle mouse events for the scrollbar
-        B.MouseDown (C.VScrollClick se C.NChatScroll) _ _ _ -> do
-          case  se of
-            B.SBHandleBefore -> B.vScrollPage (B.viewportScroll C.NChatScroll) B.Up
-            B.SBHandleAfter -> B.vScrollPage (B.viewportScroll C.NChatScroll) B.Down
-            B.SBTroughBefore -> B.vScrollPage (B.viewportScroll C.NChatScroll) B.Up
-            B.SBTroughAfter -> B.vScrollPage (B.viewportScroll C.NChatScroll) B.Down
-            _ -> pass
-
+        -- Mouse click
+        B.MouseDown n b m l -> handleButtonDown n b m l
 
         -- Decide which handler to use
         B.VtyEvent ve -> do
@@ -90,6 +85,28 @@ handleEvent commandChan eventChan ev = do
       liftIO $ st._stLog.lgCritical $ "Exception in event handler: " <> show e
     )
 
+
+handleButtonDown :: C.Name -> Vty.Button -> [Vty.Modifier] -> B.Location -> B.EventM C.Name C.UiState ()
+handleButtonDown name button ms _loc =
+  case (name, button, ms) of
+    -- Handle mouse events for the scrollbar
+    (C.VScrollClick se C.NChatScroll, _, _) -> do
+      case  se of
+        B.SBHandleBefore -> B.vScrollPage (B.viewportScroll C.NChatScroll) B.Up
+        B.SBHandleAfter -> B.vScrollPage (B.viewportScroll C.NChatScroll) B.Down
+        B.SBTroughBefore -> B.vScrollPage (B.viewportScroll C.NChatScroll) B.Up
+        B.SBTroughAfter -> B.vScrollPage (B.viewportScroll C.NChatScroll) B.Down
+        _ -> pass
+
+    (C.NChatMsgCopy msgId, _, _) -> do
+      store <- use C.stStore
+      liftIO (store.swGetMessageText msgId) >>= \case
+        Nothing -> pass
+        Just msg -> do
+          C.stDebug .= "Copying message to clipboard"
+          liftIO . Clip.setClipboard . Txt.unpack $ msg
+
+    _ -> pass
 
 
 
@@ -172,6 +189,7 @@ handleEventNoPopup commandChan eventChan ev ve = do
 handleAppEvent :: BCh.BChan C.Command -> C.UiEvent -> B.EventM C.Name C.UiState ()
 handleAppEvent commandChan uev = do
   case uev of
+    C.UeInit -> handleInit
     C.UeTick t -> handleAppEventTick commandChan t
     C.UeGotModelList ms1 -> handleAppEventGotModelList commandChan ms1
     C.UePsList ps' -> handleAppEventPsList commandChan ps'
@@ -199,6 +217,16 @@ handleAppEvent commandChan uev = do
 
       when (lvl `elem` [C.LlCritical, C.LlError]) $ do
         C.stErrorMessage .= Just msg
+
+
+handleInit :: B.EventM C.Name C.UiState ()
+handleInit = do
+  cfg <- use C.stAppConfig
+  when cfg.acAllowMouse $ do
+    vty <- BM.getVtyHandle
+    let output = vty.outputIface
+    when (Vty.supportsMode output Vty.Mouse) $
+      liftIO $ Vty.setMode output Vty.Mouse True
 
 
 handleAppEventTick :: BCh.BChan C.Command -> Int -> B.EventM C.Name C.UiState ()

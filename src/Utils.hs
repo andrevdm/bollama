@@ -290,6 +290,7 @@ defaultTheme = [r|
     tabUnselected              , black                 ,  grey
     time                       , yellow                ,  -
     version                    , yellow                ,  grey
+    copyText                   , dark_green            ,  #909090
 
     msgDetailBlock             , white                 , black
     msgDetailTitle             , green                 , black                , bold

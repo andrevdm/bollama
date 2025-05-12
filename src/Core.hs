@@ -32,6 +32,7 @@ data Name
   | NChatInputEdit
   | NChatsList
   | NChatScroll
+  | NChatMsgCopy !MessageId
   --
   | NColoursList
   --
@@ -56,7 +57,8 @@ data Name
 
 
 data UiEvent
-  = UeTick !Int
+  = UeInit
+  | UeTick !Int
   | UeGotTime !DT.UTCTime
   --
   | UeGotModelList ![O.ModelInfo]
@@ -86,9 +88,6 @@ data Command
   deriving stock (Show, Eq)
 
 newtype ChatId = ChatId Text
-  deriving stock (Show, Eq, Ord, Generic)
-
-newtype ChatMessageId = ChatMessageId Text
   deriving stock (Show, Eq, Ord, Generic)
 
 newtype MessageId = MessageId Text
@@ -201,6 +200,7 @@ data Store = Store
   , srSaveChatMessage :: !(ChatMessage -> IO ())
   , srClearChatInput :: !(ChatId -> IO ())
   , srDeleteAllChatMessages :: !(ChatId -> IO ())
+  , srGetMessageText :: !(MessageId -> IO (Maybe Text))
   }
 
 data StoreWrapper = StoreWrapper
@@ -216,6 +216,7 @@ data StoreWrapper = StoreWrapper
   , swAddStreamedChatContent :: !(ChatId -> MessageId -> O.Role -> Text -> IO (Either Text ()))
   , swClearChatInput :: !(ChatId -> IO (Either Text ()))
   , swDeleteAllChatMessages :: !(ChatId -> IO ())
+  , swGetMessageText :: !(MessageId -> IO (Maybe Text))
 
   , swLog :: !Logger
   }
@@ -234,6 +235,7 @@ data AppConfig = AppConfig
   , acAvoidEmojis :: !Bool
   , acDefaultTab :: !Tab
   , acOllamaUrl :: !(Maybe Text)
+  , acAllowMouse :: !Bool
   } deriving (Show, Eq, Generic)
 
 
@@ -329,8 +331,9 @@ instance Ae.FromJSON AppConfig where
       Just "log" -> pure TabLog
       _ -> pure TabModels
     acOllamaUrl <- o Ae..:? "ollama_url"
+    acAllowMouse <- o Ae..:? "allow_mouse"
 
-    pure $ AppConfig (fromMaybe mempty acModelTag) acDefaultModel acDefaultChatName (fromMaybe False acAvoidEmojis) acDefaultTab acOllamaUrl
+    pure $ AppConfig (fromMaybe mempty acModelTag) acDefaultModel acDefaultChatName (fromMaybe False acAvoidEmojis) acDefaultTab acOllamaUrl (fromMaybe True acAllowMouse)
 
 
 instance Ae.ToJSON AppConfig where

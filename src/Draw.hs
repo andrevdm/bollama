@@ -274,7 +274,12 @@ drawChatInner st =
       B.withAttr (B.attrName attrName) $
       B.hBox
         [ B.hBox
-            [ col 15 (show msg.msgRole) attrName
+            [ B.vBox
+                [ col 15 (show msg.msgRole) attrName
+                , if st._stAppConfig.acAllowMouse
+                  then B.txt " " <+> B.withAttr (B.attrName "copyText") (B.clickable (C.NChatMsgCopy msg.msgId) $ B.txt "[copy]")
+                  else B.emptyWidget
+                ]
             , B.vLimit 50 $ B.txtWrap msgTxt
             ]
         , renderChatMsgDetail itemSelected msg

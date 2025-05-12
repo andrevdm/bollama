@@ -57,6 +57,7 @@ emptyAppConfig = C.AppConfig
   , acAvoidEmojis = False
   , acDefaultTab = C.TabModels
   , acOllamaUrl = Nothing
+  , acAllowMouse = True
   }
 
 
