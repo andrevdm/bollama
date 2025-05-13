@@ -137,7 +137,7 @@ drawTabChat st =
                   then B.txt " " <+> B.withAttr (B.attrName "copyText") (B.clickable (C.NChatMsgCopy msg.msgId) $ B.txt "[copy]")
                   else B.emptyWidget
                 ]
-            , B.vLimit 50 $ B.txtWrap msgTxt
+            , B.txtWrap msgTxt
             ]
         , renderChatMsgDetail itemSelected msg
         ]
