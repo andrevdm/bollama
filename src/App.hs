@@ -15,6 +15,7 @@ import Brick.BChan qualified as BCh
 import Brick.Forms qualified as BFm
 import Brick.Focus qualified as BF
 import Brick.Widgets.Edit qualified as BE
+import Brick.Widgets.FileBrowser qualified as BFi
 import Brick.Widgets.List qualified as BL
 import Control.Exception.Safe (catch)
 import Control.Concurrent.STM.TVar qualified as TV
@@ -105,6 +106,9 @@ runTuiMain = do
   let chatEditForm = D.mkPopChatEditForm C.emptyChatEditInfo
 
 
+  exportBrowser <- BFi.newFileBrowser (const True) C.NPopExportBrowser (cfg.acDefaultExportDir)
+  let exportBrowserDir = BFi.getWorkingDirectory exportBrowser
+
   let initialState = C.UiState
        { _stTick = 0
        , _stAppConfig = cfg
@@ -164,6 +168,14 @@ runTuiMain = do
        , _stPopContextFocus = BF.focusRing [C.NPopContextList, C.NDialogOk, C.NDialogCancel]
        , _stPopContextList = BL.list C.NPopContextList mempty 1
        , _stPopContextOnOk = const pass
+
+       , _stPopExportFocus = BF.focusRing [C.NPopExportBrowser, C.NPopExportDir, C.NPopExportFileName, C.NPopExportFormatJson, C.NPopExportFormatText, C.NDialogOk, C.NDialogCancel]
+       , _stPopExportOnOk = const . const $ pass
+       , _stPopExportBrowser = exportBrowser
+       , _stPopExportDir = BE.editorText C.NPopExportDir (Just 1) (Txt.pack exportBrowserDir)
+       , _stPopExportFName = BE.editorText C.NPopExportFileName (Just 1) ""
+       , _stPopExportError = Nothing
+       , _stPopExportFormat = C.ExportText
        }
 
   _finalState <- B.customMain @C.Name initialVty buildVty (Just eventChan) app initialState

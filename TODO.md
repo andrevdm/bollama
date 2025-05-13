@@ -6,7 +6,6 @@
  - scroll bar clicking
  - cmd arg to set URL
  - sort chat edit list
- - export chat to file
  - options UI
  - ? chat params: https://github.com/ollama/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values
  - ? popup stack? Probably not needed

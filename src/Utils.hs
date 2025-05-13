@@ -10,15 +10,20 @@ module Utils where
 
 import           Verset
 
-import Brick qualified as B
 import Brick.AttrMap qualified as BA
 import Brick.Forms qualified as BFm
+import Brick qualified as B
 import Brick.Widgets.Dialog qualified as BD
-import Brick.Widgets.ProgressBar qualified as BP
 import Brick.Widgets.Edit qualified as BE
+import Brick.Widgets.FileBrowser qualified as BFi
 import Brick.Widgets.List qualified as BL
-import Data.Map.Strict qualified as Map
+import Brick.Widgets.ProgressBar qualified as BP
+import Data.Aeson.Encode.Pretty qualified as Ae
+import Data.Aeson qualified as Ae
+import Data.ByteString.Lazy qualified as BSL
 import Data.List (findIndex)
+import Data.Map.Strict qualified as Map
+import Data.Text.Encoding qualified as TxtE
 import Data.Text.IO qualified as Txt
 import Data.Text qualified as Txt
 import Data.UUID.V4 qualified as UU
@@ -145,6 +150,75 @@ messageDetailFromChatResponse cr =
     }
 
 
+exportChatToFile :: C.Chat -> [C.ChatMessage] -> C.ExportFormat -> FilePath -> IO ()
+exportChatToFile chat ms fmt file = do
+  Txt.writeFile file $ exportChat chat ms fmt
+
+
+exportChat :: C.Chat -> [C.ChatMessage]  -> C.ExportFormat -> Text
+exportChat c ms C.ExportJson = exportChatJson c ms
+exportChat c ms C.ExportText = exportChatText c ms
+
+
+exportChatJson :: C.Chat -> [C.ChatMessage] -> Text
+exportChatJson c ms =
+  let
+    chat = Ae.object
+      [ ("id", Ae.toJSON $ C.unChatId c.chatId)
+      , ("name", Ae.toJSON c.chatName)
+      , ("createdAt", Ae.toJSON c.chatCreatedAt)
+      ]
+
+    chatMessages = ms <&> \m ->
+      Ae.object
+        [ ("id", Ae.toJSON $ C.unMessageId m.msgId)
+        , ("role", Ae.toJSON m.msgRole)
+        , ("model", Ae.toJSON m.msgModel)
+        , ("createdAt", Ae.toJSON m.msgCreatedAt)
+        , ("text", Ae.toJSON m.msgText)
+        ]
+
+    export = Ae.object
+      [ ("chat", chat)
+      , ("messages", Ae.toJSON chatMessages)
+      ]
+  in
+  TxtE.decodeUtf8 . BSL.toStrict . Ae.encodePretty $ export
+
+
+exportChatText :: C.Chat -> [C.ChatMessage] -> Text
+exportChatText c ms = Txt.unlines . concat $
+  [
+    [ "***************************************************************************************************************************"
+    , "# Name: " <> c.chatName
+    , " - ID: " <> show (C.unChatId c.chatId)
+    , " - Created: " <> show c.chatCreatedAt
+    , "***************************************************************************************************************************"
+    , ""
+    , ""
+    , ""
+    ]
+  ]
+  <>
+  ( ms <&> \m ->
+      [ "--------------------------------------------------------------------------------------------------------------"
+      , "# Role: " <> show m.msgRole
+      , " - ID: " <> show (C.unMessageId m.msgId)
+      , " - Model: " <> show m.msgModel
+      , " - Created: " <> show m.msgCreatedAt
+      , "--------------------------------------------------------------------------------------------------------------"
+      , ""
+      , m.msgText
+      , ""
+      , "--------------------------------------------------------------------------------------------------------------"
+      , ""
+      , ""
+      , ""
+      ]
+  )
+
+
+
 attrMapFromFile :: FilePath -> IO ([Text], BA.AttrMap)
 attrMapFromFile file = do
   txt <- Txt.readFile file
@@ -260,6 +334,18 @@ attrMapFromText' txt = do
     readAttrName "progressIncompleteAttr" = BP.progressCompleteAttr
     readAttrName "focusedFormInputAttr" = BFm.focusedFormInputAttr
     readAttrName "invalidFormInputAttr" = BFm.invalidFormInputAttr
+    readAttrName "fileBrowserAttr" = BFi.fileBrowserAttr
+    readAttrName "fileBrowserCurrentDirectoryAttr" = BFi.fileBrowserCurrentDirectoryAttr
+    readAttrName "fileBrowserSelectionInfoAttr" = BFi.fileBrowserSelectionInfoAttr
+    readAttrName "fileBrowserSelectedAttr" = BFi.fileBrowserSelectedAttr
+    readAttrName "fileBrowserDirectoryAttr" = BFi.fileBrowserDirectoryAttr
+    readAttrName "fileBrowserBlockDeviceAttr" = BFi.fileBrowserBlockDeviceAttr
+    readAttrName "fileBrowserRegularFileAttr" = BFi.fileBrowserRegularFileAttr
+    readAttrName "fileBrowserCharacterDeviceAttr" = BFi.fileBrowserCharacterDeviceAttr
+    readAttrName "fileBrowserNamedPipeAttr" = BFi.fileBrowserNamedPipeAttr
+    readAttrName "fileBrowserSymbolicLinkAttr" = BFi.fileBrowserSymbolicLinkAttr
+    readAttrName "fileBrowserUnixSocketAttr" = BFi.fileBrowserUnixSocketAttr
+
     readAttrName t = BA.attrName . Txt.unpack $ t
 
 
@@ -316,8 +402,23 @@ defaultTheme = [r|
     helpKeyShortcut            , green                 ,  black
     helpKeyAction              , grey                  ,  black
 
-
     invalidFormInputAttr       , black                 ,  red
+
+    radio                      , cornflower_blue       ,  -
+    radioFocused               , black                 ,  cornflower_blue
+
+
+    -- fileBrowserAttr
+    -- fileBrowserCurrentDirectoryAttr
+    -- fileBrowserSelectionInfoAttr
+    -- fileBrowserSelectedAttr
+    -- fileBrowserDirectoryAttr
+    -- fileBrowserBlockDeviceAttr
+    -- fileBrowserRegularFileAttr
+    -- fileBrowserCharacterDeviceAttr
+    -- fileBrowserNamedPipeAttr
+    -- fileBrowserSymbolicLinkAttr
+    -- fileBrowserUnixSocketAttr
 |]
 
 

@@ -20,6 +20,7 @@ import Brick.BChan qualified as BCh
 import Brick.Forms qualified as BFm
 import Brick.Focus qualified as BF
 import Brick.Widgets.Edit qualified as BE
+import Brick.Widgets.FileBrowser qualified as BFi
 import Brick.Widgets.List qualified as BL
 import Control.Debounce as Deb
 import Control.Concurrent.Async (forConcurrently_)
@@ -39,6 +40,9 @@ import Data.Time as DT
 import Data.Vector qualified as V
 import Graphics.Vty qualified as Vty
 import Ollama qualified as O
+import System.Directory qualified as Dir
+import System.FilePath qualified as Fp
+import System.FilePath ((</>))
 import System.Hclip qualified as Clip
 
 import Config qualified as Cfg
@@ -75,6 +79,7 @@ handleEvent commandChan eventChan ev = do
                 Just C.PopupConfirm -> handleEventPopupConfirm commandChan ev ve
                 Just C.PopupHelp -> handleEventPopupHelp commandChan ev ve
                 Just C.PopupContext -> handleEventPopupContext commandChan ev ve
+                Just C.PopupExport -> handleEventPopupExport commandChan ev ve
                 -- Otherwise the main UI gets the event
                 Nothing -> handleEventNoPopup commandChan eventChan ev ve
 
@@ -573,8 +578,9 @@ handleTabChat commandChan eventChan store ev ve focused k ms =
   where
     contextMenu = do
       let menuItems =
-           [ ("new", "New chat")
+           [ ("export", "Export chat")
            , ("edit", "Edit chat")
+           , ("new", "New chat")
            , ("think", "Toggle thinking")
            , ("detail", "Toggle message detail")
            , ("stop", "Stop chat")
@@ -584,13 +590,28 @@ handleTabChat commandChan eventChan store ev ve focused k ms =
       C.stPopContextTitle .= Just "Chat"
       C.stPopContextList .= BL.list C.NPopContextList (V.fromList menuItems) 1
       C.stPopContextOnOk .= \case
-        "new" -> startNewChat commandChan Nothing
+        "export" -> exportChat
         "edit" -> editModel "Edit chat"
+        "new" -> startNewChat commandChan Nothing
         "think" -> C.stShowThinking %= not
         "detail" -> C.stShowMessageDetail %= not
         "stop" -> stopChat
         "clear" -> clearChatMessages
         _ -> pass
+
+
+    exportChat = do
+      use (C.stChatsList . to BL.listSelectedElement) >>= \case
+       Nothing -> C.stDebug .= "No chat selected"
+       Just (_, chat1) -> do
+          liftIO (store.swGetChat chat1.chatId) >>= \case
+            Nothing -> C.stDebug .= "No chat found"
+            Just (chat, ms') -> do
+              C.stPopup .= Just C.PopupExport
+              C.stPopExportOnOk .= \exportFormat path -> do
+                liftIO $ U.exportChatToFile chat ms' exportFormat path
+                C.stDebug .= "Exported chat to: " <> Txt.pack path
+
 
     clearChatMessages = do
       C.stPopup .= Just C.PopupConfirm
@@ -1247,4 +1268,160 @@ handleEventPopupContext _commandChan _ev ve = do
       C.stPopContextList .= BL.list C.NPopContextList (V.fromList []) 1
       C.stPopContextFocus %= BF.focusSetCurrent C.NPopContextList
       C.stPopContextOnOk .= const pass
+ ----------------------------------------------------------------------------------------------------------------------
+
+
+
+----------------------------------------------------------------------------------------------------------------------
+-- Export Popup
+----------------------------------------------------------------------------------------------------------------------
+handleEventPopupExport :: BCh.BChan C.Command -> B.BrickEvent C.Name C.UiEvent -> Vty.Event -> B.EventM C.Name C.UiState ()
+handleEventPopupExport _commandChan ev ve = do
+  st <- B.get
+  let focused = BF.focusGetCurrent st._stPopExportFocus
+
+  C.stDebug .= ""
+  case ve of
+    Vty.EvKey k ms -> do
+      case (focused, k, ms) of
+        (_, Vty.KChar 'q', [Vty.MCtrl]) -> do
+          C.stPopup .= Nothing
+
+        (_, Vty.KEsc, []) -> do
+          C.stPopup .= Nothing
+
+        (_, Vty.KChar '\t', []) -> do
+          C.stPopExportFocus %= BF.focusNext
+          updateBrowserFromInputs
+
+        (_, Vty.KBackTab, []) -> do
+          C.stPopExportFocus %= BF.focusPrev
+          updateBrowserFromInputs
+
+        -- Suppress the space key / select file
+        (Just C.NPopExportBrowser, Vty.KChar ' ', _) -> do
+          pass
+        --
+        -- Suppress the search key for now
+        (Just C.NPopExportBrowser, Vty.KChar '/', _) -> do
+          pass
+
+        -- Enter = go to dir
+        (Just C.NPopExportBrowser, Vty.KEnter, _) -> do
+          goToDir
+
+        (Just C.NPopExportFormatJson, Vty.KEnter, []) -> do
+          C.stPopExportFormat .= C.ExportJson
+
+        (Just C.NPopExportFormatJson, Vty.KChar ' ', []) -> do
+          C.stPopExportFormat .= C.ExportJson
+
+        (Just C.NPopExportFormatText, Vty.KEnter, []) -> do
+          C.stPopExportFormat .= C.ExportText
+
+        (Just C.NPopExportFormatText, Vty.KChar ' ', []) -> do
+          C.stPopExportFormat .= C.ExportText
+
+        (Just C.NPopExportBrowser, _, _) -> do
+          C.stPopExportError .= Nothing
+          B.zoom C.stPopExportBrowser $ BFi.handleFileBrowserEvent ve
+          updateFromBrowser
+
+        (Just C.NPopExportFileName, _, _) -> do
+          B.zoom C.stPopExportFName $ BE.handleEditorEvent ev
+
+        (Just C.NPopExportDir, _, _) -> do
+          B.zoom C.stPopExportDir $ BE.handleEditorEvent ev
+
+        (Just C.NDialogOk, Vty.KEnter, []) ->
+          ok
+
+        (Just C.NDialogCancel, Vty.KEnter, []) -> do
+          clear
+
+        _ -> pass
+
+    _ -> pass
+
+  where
+    ok :: B.EventM C.Name C.UiState ()
+    ok = do
+      dir <- use (C.stPopExportDir . BE.editContentsL . to TxtZ.getText . to Txt.unlines . to Txt.strip)
+      fname <- use (C.stPopExportFName . BE.editContentsL . to TxtZ.getText . to Txt.unlines . to Txt.strip)
+
+      case (Txt.null dir, Txt.null fname) of
+        (False, False) -> do
+          st <- B.get
+          clear
+          st._stPopExportOnOk st._stPopExportFormat $ Txt.unpack dir </> Txt.unpack fname
+
+        _ -> do
+          C.stPopExportError .= Just "Empty dir or file name"
+
+
+    goToDir = do
+      browser <- use C.stPopExportBrowser
+      case BFi.fileBrowserCursor browser of
+        Nothing -> pass
+        Just h -> do
+          liftIO (Dir.doesDirectoryExist h.fileInfoFilePath) >>= \case
+            False -> pass
+            True -> do
+              browser2 <- liftIO $ BFi.setWorkingDirectory h.fileInfoFilePath browser
+              C.stPopExportBrowser .= browser2
+
+
+    clear = do
+      st <- B.get
+      browser2 <- liftIO $ BFi.newFileBrowser (const True) C.NPopExportBrowser (st._stAppConfig.acDefaultExportDir)
+      let dir = BFi.getWorkingDirectory browser2
+      C.stPopup .= Nothing
+      C.stPopExportFocus %= BF.focusSetCurrent C.NPopExportBrowser
+      C.stPopExportOnOk .= (const . const $ pass)
+      C.stPopExportBrowser .= browser2
+      C.stPopExportError .= Nothing
+      C.stPopExportFName . BE.editContentsL .= TxtZ.textZipper [] Nothing
+      C.stPopExportDir . BE.editContentsL .= TxtZ.textZipper [Txt.pack dir] Nothing
+
+
+    updateFromBrowser = do
+      browser <- use C.stPopExportBrowser
+      case BFi.fileBrowserCursor browser of
+        Nothing -> do
+          C.stPopExportDir . BE.editContentsL .= TxtZ.textZipper [] Nothing
+          C.stPopExportFName . BE.editContentsL .= TxtZ.textZipper [] Nothing
+        Just h -> do
+          liftIO (Dir.doesDirectoryExist h.fileInfoFilePath) >>= \case
+            True -> do
+              C.stPopExportDir . BE.editContentsL .= TxtZ.textZipper [Txt.pack h.fileInfoFilePath] Nothing
+              C.stPopExportFName . BE.editContentsL .= TxtZ.textZipper [] Nothing
+
+            False -> do
+              C.stPopExportDir . BE.editContentsL .= TxtZ.textZipper [Txt.pack . Fp.takeDirectory $ h.fileInfoFilePath] Nothing
+              C.stPopExportFName . BE.editContentsL .= TxtZ.textZipper [Txt.pack $ h.fileInfoSanitizedFilename] Nothing
+
+
+    updateBrowserFromInputs = do
+      st <- B.get
+      case BF.focusGetCurrent st._stPopExportFocus of
+        Just C.NPopExportBrowser -> do
+          browser1 <- use C.stPopExportBrowser
+
+          prevDir <-
+            case BFi.fileBrowserCursor browser1 of
+              Nothing -> pure Nothing
+              Just h -> do
+                liftIO (Dir.doesDirectoryExist h.fileInfoFilePath) >>= \case
+                  True -> pure . Just . Txt.pack $ h.fileInfoFilePath
+                  False -> pure . Just . Txt.pack $ Fp.takeDirectory h.fileInfoFilePath
+
+          dir <- use (C.stPopExportDir . BE.editContentsL . to TxtZ.getText . to Txt.unlines . to Txt.strip)
+
+          when (not (Txt.null dir) || Just dir /= prevDir) $ do
+            browser2 <- liftIO $ BFi.setWorkingDirectory (Txt.unpack dir) browser1
+            C.stPopExportBrowser .= browser2
+
+        _ -> do
+          pass
+
  ----------------------------------------------------------------------------------------------------------------------

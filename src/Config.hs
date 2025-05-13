@@ -58,6 +58,7 @@ emptyAppConfig = C.AppConfig
   , acDefaultTab = C.TabModels
   , acOllamaUrl = Nothing
   , acAllowMouse = True
+  , acDefaultExportDir = Nothing
   }
 
 

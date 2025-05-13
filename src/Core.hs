@@ -15,6 +15,7 @@ import Brick.Focus qualified as BF
 import Brick.Forms qualified as BFm
 import Brick qualified as B
 import Brick.Widgets.Edit qualified as BE
+import Brick.Widgets.FileBrowser qualified as BFi
 import Brick.Widgets.List qualified as BL
 import Control.Concurrent.STM.TVar qualified as TV
 import Control.Lens (makeLenses)
@@ -53,6 +54,12 @@ data Name
   | NHelpScroll
   --
   | NPopContextList
+  --
+  | NPopExportBrowser
+  | NPopExportDir
+  | NPopExportFileName
+  | NPopExportFormatJson
+  | NPopExportFormatText
   deriving stock (Show, Eq, Ord)
 
 
@@ -95,6 +102,9 @@ newtype MessageId = MessageId Text
 
 unChatId :: ChatId -> Text
 unChatId (ChatId t) = t
+
+unMessageId :: MessageId -> Text
+unMessageId (MessageId t) = t
 
 data UiState = UiState
   { _stTick :: !Int
@@ -155,6 +165,14 @@ data UiState = UiState
   , _stPopContextTitle :: !(Maybe Text)
   , _stPopContextList :: !(BL.List Name (Text, Text))
   , _stPopContextOnOk :: !(Text -> B.EventM Name UiState ())
+
+  , _stPopExportFocus :: !(BF.FocusRing Name)
+  , _stPopExportOnOk :: !(ExportFormat -> FilePath -> B.EventM Name UiState ())
+  , _stPopExportBrowser :: !(BFi.FileBrowser Name)
+  , _stPopExportDir :: !(BE.Editor Text Name)
+  , _stPopExportFName :: !(BE.Editor Text Name)
+  , _stPopExportError :: !(Maybe Text)
+  , _stPopExportFormat :: !ExportFormat
   }
 
 data Chat = Chat
@@ -236,6 +254,7 @@ data AppConfig = AppConfig
   , acDefaultTab :: !Tab
   , acOllamaUrl :: !(Maybe Text)
   , acAllowMouse :: !Bool
+  , acDefaultExportDir :: !(Maybe FilePath)
   } deriving (Show, Eq, Generic)
 
 
@@ -266,6 +285,7 @@ data Popup
   | PopupConfirm
   | PopupHelp
   | PopupContext
+  | PopupExport
   deriving stock (Show, Eq, Ord, Bounded, Enum)
 
 
@@ -281,6 +301,12 @@ data LogLevel
   | LlWarn
   | LlError
   | LlCritical
+  deriving stock (Show, Eq, Ord, Bounded, Enum)
+
+
+data ExportFormat
+  = ExportJson
+  | ExportText
   deriving stock (Show, Eq, Ord, Bounded, Enum)
 
 
@@ -332,8 +358,9 @@ instance Ae.FromJSON AppConfig where
       _ -> pure TabModels
     acOllamaUrl <- o Ae..:? "ollama_url"
     acAllowMouse <- o Ae..:? "allow_mouse"
+    acDefaultExportDir <- o Ae..:? "default_export_dir"
 
-    pure $ AppConfig (fromMaybe mempty acModelTag) acDefaultModel acDefaultChatName (fromMaybe False acAvoidEmojis) acDefaultTab acOllamaUrl (fromMaybe True acAllowMouse)
+    pure $ AppConfig (fromMaybe mempty acModelTag) acDefaultModel acDefaultChatName (fromMaybe False acAvoidEmojis) acDefaultTab acOllamaUrl (fromMaybe True acAllowMouse) acDefaultExportDir
 
 
 instance Ae.ToJSON AppConfig where

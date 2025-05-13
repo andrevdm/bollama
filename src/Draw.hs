@@ -27,6 +27,7 @@ import Brick.Widgets.Border.Style qualified as BBS
 import Brick.Widgets.Center qualified as BC
 import Brick.Widgets.Core qualified as BW
 import Brick.Widgets.Edit qualified as BE
+import Brick.Widgets.FileBrowser qualified as BFi
 import Brick.Widgets.List qualified as BL
 import Control.Lens (Lens', (^.))
 import Data.Char qualified as Chr
@@ -65,6 +66,7 @@ drawUI st =
             Just C.PopupConfirm -> drawPopupConfirm st
             Just C.PopupHelp -> drawPopupHelp st
             Just C.PopupContext -> drawPopupContext st
+            Just C.PopupExport -> drawPopupExport st
 
   -- Draw the main UI
   , drawTabs st
@@ -714,6 +716,66 @@ drawPopupContext st =
       )
     )
   )
+---------------------------------------------------------------------------------------------------
+
+
+
+
+---------------------------------------------------------------------------------------------------
+-- Popup Export Chat
+---------------------------------------------------------------------------------------------------
+drawPopupExport :: C.UiState -> B.Widget C.Name
+drawPopupExport st =
+  B.vLimit 50 $
+  B.hLimit 120 $
+  borderWithLabel' True "Export Chat" $
+  B.padAll 1 $
+  ( ( BB.border (BFi.renderFileBrowser (BF.focusGetCurrent st._stPopExportFocus == Just C.NPopExportBrowser) st._stPopExportBrowser)
+      <=>
+      (B.padTop (B.Pad 1) . B.vLimit 1 $ (B.withAttr (B.attrName "colHeader") (B.txt "dir : ") <+> BE.renderEditor (B.txt . Txt.unlines) (BF.focusGetCurrent st._stPopExportFocus == Just C.NPopExportDir) st._stPopExportDir))
+      <=>
+      (B.padTop (B.Pad 1) . B.vLimit 1 $ B.vLimit 1 (B.withAttr (B.attrName "colHeader") (B.txt "name: ") <+> BE.renderEditor (B.txt . Txt.unlines) (BF.focusGetCurrent st._stPopExportFocus == Just C.NPopExportFileName) st._stPopExportFName))
+      <=>
+      (radio C.NPopExportFormatJson "JSON" 8 C.ExportJson C.stPopExportFormat)
+      <=>
+      (radio C.NPopExportFormatText "Text" 8 C.ExportText C.stPopExportFormat)
+      <=>
+      (case st._stPopExportError of
+        Nothing -> B.emptyWidget
+        Just err -> B.padTop (B.Pad 1) . B.withAttr (B.attrName "popupError") $ B.txt err
+      )
+    )
+    <=>
+    ( B.padTop (B.Pad 2) . BC.hCenter $
+      let
+        (attrOk, attrBorderOk) =
+          if BF.focusGetCurrent st._stPopExportFocus == Just C.NDialogOk
+          then (B.attrName "popupButtonOkFocused", BBS.unicodeBold)
+          else (B.attrName "popupButtonOk", BBS.unicode)
+
+        (attrCancel, attrBorderCancel) =
+          if BF.focusGetCurrent st._stPopExportFocus == Just C.NDialogCancel
+          then (B.attrName "popupButtonCancelFocused", BBS.unicodeBold)
+          else (B.attrName "popupButtonCancel", BBS.unicode)
+      in
+      (     B.withBorderStyle attrBorderOk (BB.border (B.withAttr attrOk . B.vLimit 1 . B.hLimit 8 . BC.hCenter $ B.txt "Yes"))
+        <+> B.txt " "
+        <+> B.withBorderStyle attrBorderCancel (BB.border (B.withAttr attrCancel . B.vLimit 1 . B.hLimit 8 . BC.hCenter $ B.txt "No"))
+      )
+    )
+  )
+
+  where
+    radio :: (Eq a) => C.Name -> Text -> Int -> a -> Lens' C.UiState a -> B.Widget C.Name
+    radio name label labelWidth value lens =
+      let
+        focused = BF.focusGetCurrent st._stPopExportFocus == Just name
+        attr = if focused then "radioFocused" else "radio"
+        checked = st ^.lens == value
+      in
+      B.padTop (B.Pad 1) . B.vLimit 1 $
+      ( col labelWidth (label <> ": ") "colHeader" <+> B.withAttr (B.attrName attr) (B.txt (if checked then "[X]" else "[ ]"))
+      )
 ---------------------------------------------------------------------------------------------------
 
 
