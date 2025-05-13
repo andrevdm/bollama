@@ -34,7 +34,7 @@ parseParams md =
 
       sz2 = Txt.dropEnd drop' sz
   in
-  case readMaybe @Double . Txt.unpack $ sz2 of
+  case readMaybe @Double . Txt.unpack . Txt.replace "," "" $ sz2 of
     Nothing -> Nothing
     Just sz3 -> Just $ sz3 * mul
 
