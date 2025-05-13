@@ -9,8 +9,7 @@
 
 module Core where
 
-import           Verset
-
+import Verset
 import Brick.Focus qualified as BF
 import Brick.Forms qualified as BFm
 import Brick qualified as B

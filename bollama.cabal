@@ -1,6 +1,6 @@
 cabal-version: 3.4
 name: bollama
-version: 0.1.0.14
+version: 0.1.0.15
 -- synopsis:
 -- description:
 license: MIT
@@ -38,7 +38,21 @@ library
     Events,
     Help,
     Storage,
-    Utils
+    Theme,
+    Utils,
+    Widgets.Common,
+    Widgets.ErrorMessage,
+    Widgets.PopupConfirm,
+    Widgets.PopupContextMenu,
+    Widgets.PopupEditChat,
+    Widgets.PopupExport,
+    Widgets.PopupHelp,
+    Widgets.PopupPrompt,
+    Widgets.TabChat,
+    Widgets.TabColours,
+    Widgets.TabLog,
+    Widgets.TabModels,
+    Widgets.TabPs,
   other-modules:
     Paths_bollama
   build-depends:

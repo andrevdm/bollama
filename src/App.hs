@@ -8,33 +8,33 @@
 
 module App where
 
-import           Verset
-
-import Brick qualified as B
+import Verset
 import Brick.BChan qualified as BCh
-import Brick.Forms qualified as BFm
 import Brick.Focus qualified as BF
+import Brick.Forms qualified as BFm
+import Brick qualified as B
 import Brick.Widgets.Edit qualified as BE
 import Brick.Widgets.FileBrowser qualified as BFi
 import Brick.Widgets.List qualified as BL
-import Control.Exception.Safe (catch)
 import Control.Concurrent.STM.TVar qualified as TV
-import Data.Text qualified as Txt
+import Control.Exception.Safe (catch)
 import Data.Text.IO qualified as Txt
+import Data.Text qualified as Txt
 import Data.Time qualified as DT
 import Data.Vector qualified as V
-import Graphics.Vty qualified as Vty
 import Graphics.Vty.CrossPlatform qualified as Vty
+import Graphics.Vty qualified as Vty
 import System.Environment qualified as Env
 import System.FilePath ((</>))
 
-import Core qualified as C
 import Config qualified as Cfg
+import Core qualified as C
 import Draw qualified as D
 import Events qualified as E
 import Help qualified as H
 import Storage qualified as Sr
-import Utils qualified as U
+import Theme qualified as T
+import Widgets.PopupEditChat qualified as WPce
 
 runTui :: IO ()
 runTui = do
@@ -103,7 +103,7 @@ runTuiMain = do
   initialVty <- buildVty
 
   now <- DT.getCurrentTime
-  let chatEditForm = D.mkPopChatEditForm C.emptyChatEditInfo
+  let chatEditForm = WPce.mkPopChatEditForm C.emptyChatEditInfo
 
 
   exportBrowser <- BFi.newFileBrowser (const True) C.NPopExportBrowser (cfg.acDefaultExportDir)
@@ -141,7 +141,7 @@ runTuiMain = do
        , _stChatMsgs = []
        , _stChatsList = BL.list C.NChatsList mempty 1
 
-       , _stColoursList = BL.list C.NColoursList (V.fromList . sort $ fst <$> U.knownColours) 1
+       , _stColoursList = BL.list C.NColoursList (V.fromList . sort $ fst <$> T.knownColours) 1
 
        , _stFocusLog = BF.focusRing [C.NLogList]
        , _stLogList = BL.list C.NLogList mempty 1

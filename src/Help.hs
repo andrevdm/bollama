@@ -8,17 +8,16 @@
 
 module Help where
 
-import           Verset
-
+import Verset
 import Brick ((<+>))
 import Brick.AttrMap qualified as BA
 import Brick qualified as B
 import Brick.Widgets.Border qualified as BB
 import Data.Text qualified as Txt
 
-import Core qualified as C
 import Config qualified as Cfg
-import Utils qualified as U
+import Core qualified as C
+import Theme qualified as T
 
 
 data Help
@@ -259,7 +258,7 @@ helpContent =
                 , "Here is the default theme"
                 ]
 
-            , HlpIndent 2 [HlpText [U.defaultTheme]]
+            , HlpIndent 2 [HlpText [T.defaultTheme]]
             ]
 
        , HlpSection 2 "Config"

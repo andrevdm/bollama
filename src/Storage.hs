@@ -13,21 +13,20 @@ module Storage
   , newFileLogger
   ) where
 
-import           Verset
-
+import Verset
+import Control.Concurrent.MVar.Strict (MVar', newMVar', modifyMVar', modifyMVar'_, withMVar')
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TVar qualified as TV
-import Control.Concurrent.MVar.Strict (MVar', newMVar', modifyMVar', modifyMVar'_, withMVar')
 import Control.Exception.Safe (finally, catch)
-import Database.SQLite.Simple qualified as Sq
 import Database.SQLite.Simple (NamedParam(..))
-import Data.Time qualified as DT
+import Database.SQLite.Simple qualified as Sq
 import Data.Map.Strict qualified as Map
-import Data.Text qualified as Txt
 import Data.Text.IO qualified as Txt
+import Data.Text qualified as Txt
+import Data.Time qualified as DT
 import Ollama qualified as O
-import Text.RawString.QQ (r)
 import Text.Pretty.Simple (pPrint)
+import Text.RawString.QQ (r)
 
 import Core qualified as C
 import Utils qualified as U

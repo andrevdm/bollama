@@ -8,11 +8,10 @@
 
 module Config where
 
-import           Verset
-
+import Verset
 import Brick.AttrMap qualified as BA
-import Data.Aeson qualified as Ae
 import Data.Aeson.Encode.Pretty qualified as Ae
+import Data.Aeson qualified as Ae
 import Data.ByteString.Lazy as BSL
 import Data.Text qualified as Txt
 import Data.Version qualified as Ver
@@ -21,7 +20,7 @@ import System.Directory qualified as Dir
 import System.FilePath ((</>))
 
 import Core qualified as C
-import Utils qualified as U
+import Theme qualified as T
 
 
 verText :: Text
@@ -99,7 +98,7 @@ loadTheme = do
   let themeFile = configDir </> "theme.csv"
 
   Dir.doesFileExist themeFile >>= \case
-    True -> U.attrMapFromFile themeFile
-    False -> U.attrMapFromText U.defaultTheme
+    True -> T.attrMapFromFile themeFile
+    False -> T.attrMapFromText T.defaultTheme
 
 
