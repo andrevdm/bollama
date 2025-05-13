@@ -1,6 +1,7 @@
 
 
 
+
 # BOllama
 
 Simple Ollama TUI
@@ -111,7 +112,7 @@ NB this is formatted better in the app itself, this is here for reference only
 <div style='margin-left: 15px'>
 
 Bollama is a simple TUI for Ollama.
-  version: 0.1.0.15 beta
+  version: 0.1.0.16 beta
 
 
 

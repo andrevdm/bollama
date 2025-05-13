@@ -172,13 +172,17 @@ drawTabChat st =
           , B.withAttr (B.attrName "msgDetailTitle") (B.txt "Created At: ") <+> (B.withAttr (B.attrName "msgDetailText") (B.txt (Txt.pack $ DT.formatTime DT.defaultTimeLocale "%Y-%m-%d %H:%M:%S" msg.msgCreatedAt)))
           , B.withAttr (B.attrName "msgDetailTitle") (B.txt "Total Duration: ") <+> (B.withAttr (B.attrName "msgDetailText") (B.txt (formatDuration . join $ C.cdTotalDuration <$> msg.msgDetail)))
           , B.withAttr (B.attrName "msgDetailTitle") (B.txt "Load Duration: ") <+> (B.withAttr (B.attrName "msgDetailText") (B.txt (formatDuration . join $ C.cdLoadDuration <$> msg.msgDetail)))
-          , B.withAttr (B.attrName "msgDetailTitle") (B.txt "Prompt Eval Count: ") <+> (B.withAttr (B.attrName "msgDetailText") (B.txt (show . join $ C.cdPromptEvalCount <$> msg.msgDetail)))
+          , B.withAttr (B.attrName "msgDetailTitle") (B.txt "Prompt Eval Count: ") <+> (B.withAttr (B.attrName "msgDetailText") (B.txt (showMaybe . join $ C.cdPromptEvalCount <$> msg.msgDetail)))
           , B.withAttr (B.attrName "msgDetailTitle") (B.txt "Prompt Eval Duration: ") <+> (B.withAttr (B.attrName "msgDetailText") (B.txt (formatDuration . join $ C.cdLoadDuration <$> msg.msgDetail)))
-          , B.withAttr (B.attrName "msgDetailTitle") (B.txt "Eval Count: ") <+> (B.withAttr (B.attrName "msgDetailText") (B.txt (show . join $ C.cdEvalCount <$> msg.msgDetail)))
+          , B.withAttr (B.attrName "msgDetailTitle") (B.txt "Eval Count: ") <+> (B.withAttr (B.attrName "msgDetailText") (B.txt (showMaybe . join $ C.cdEvalCount <$> msg.msgDetail)))
           , B.withAttr (B.attrName "msgDetailTitle") (B.txt "Eval Duration: ") <+> (B.withAttr (B.attrName "msgDetailText") (B.txt (formatDuration . join $ C.cdEvalDuration <$> msg.msgDetail)))
           ]
       else
         B.emptyWidget
+
+    showMaybe :: Show a => Maybe a -> Text
+    showMaybe Nothing = ""
+    showMaybe (Just a) = show a
 
     formatDuration :: Maybe Int -> Text
     formatDuration Nothing = ""
