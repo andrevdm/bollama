@@ -297,7 +297,8 @@ handleTabChat commandChan eventChan store ev ve focused k ms =
            , ("think", "Toggle thinking")
            , ("detail", "Toggle message detail")
            , ("stop", "Stop chat")
-           , ("clear", "Delete messages")
+           , ("clear", "Remove all messages")
+           , ("delete", "Delete chat")
            ]
       C.stPopup .= Just C.PopupContext
       C.stPopContextTitle .= Just "Chat"
@@ -310,6 +311,7 @@ handleTabChat commandChan eventChan store ev ve focused k ms =
         "detail" -> C.stShowMessageDetail %= not
         "stop" -> stopChat
         "clear" -> clearChatMessages
+        "delete" -> deleteChat
         _ -> pass
 
 
@@ -326,24 +328,47 @@ handleTabChat commandChan eventChan store ev ve focused k ms =
                 C.stDebug .= "Exported chat to: " <> Txt.pack path
 
 
+    deleteChat = do
+      use (C.stChatsList . to BL.listSelectedElement) >>= \case
+        Nothing -> pass
+        Just (_, chat) -> do
+          C.stPopup .= Just C.PopupConfirm
+          C.stPopConfirmTitle .= Just "Are you sure you want to remove all messages for this chat?"
+          C.stPopConfirmDetail .= Just chat.chatName
+          C.stPopConfirmOnOk .= do
+            catch
+              (do
+                 st <- B.get
+                 C.stChatInput . BE.editContentsL %= TxtZ.clearZipper
+                 liftIO $ st._stStore.swDeleteChat chat.chatId
+                 liftIO . BCh.writeBChan commandChan $ C.CmdRefreshChatsList (Just . Right $ chat.chatId)
+                 C.stDebug .= "Deleted chat: " <> chat.chatName
+              )
+              (\(e :: SomeException) -> do
+                st <- B.get
+                liftIO $ st._stLog.lgError $ "Error deleting chat messages: " <> show e
+              )
+
+
     clearChatMessages = do
-      C.stPopup .= Just C.PopupConfirm
-      C.stPopConfirmTitle .= Just "Are you sure you want to remove all messages for this chat?"
-      C.stPopConfirmDetail .= Nothing
-      C.stPopConfirmOnOk .= do
-        use (C.stChatsList . to BL.listSelectedElement) >>= \case
-          Nothing -> pass
-          Just (_, chat) -> do
+      use (C.stChatsList . to BL.listSelectedElement) >>= \case
+        Nothing -> pass
+        Just (_, chat) -> do
+          C.stPopup .= Just C.PopupConfirm
+          C.stPopConfirmTitle .= Just "Are you sure you want to delete this chat?"
+          C.stPopConfirmDetail .= Just chat.chatName
+          C.stPopConfirmOnOk .= do
             catch
               (do
                  st <- B.get
                  C.stChatInput . BE.editContentsL %= TxtZ.clearZipper
                  liftIO $ st._stStore.swDeleteAllChatMessages chat.chatId
                  liftIO . BCh.writeBChan commandChan $ C.CmdRefreshChatsList (Just . Right $ chat.chatId)
+                 C.stDebug .= "Deleted all chat messages: " <> chat.chatName
               )
               (\(e :: SomeException) -> do
                 st <- B.get
-                liftIO $ st._stLog.lgError $ "Error deleting chat messages: " <> show e
+                liftIO $ st._stLog.lgError $ "Error deleting chat: " <> show e
               )
 
 

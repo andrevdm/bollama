@@ -92,6 +92,12 @@ newInMemStore = do
             Just (c, _) ->
               Map.insert chatId (c {C.chatInput = ""}, []) m
 
+    , srDeleteChat = \chatId -> do
+        atomically $ TV.modifyTVar' store $ \m ->
+          case Map.lookup chatId m of
+            Nothing -> m
+            Just (c, _) -> Map.delete chatId m
+
     , srGetMessageText = \msgId -> do
         chats <- atomically $ TV.readTVar store
         let ms1 = Map.elems chats
@@ -127,7 +133,6 @@ newStoreWrapper mkStore = do
 
   let wrapper = C.StoreWrapper
        { swListChats = listChats st
-
        , swNewChat = newChat st
        , swGetChat = getChat st
        , swSetCurrent = \c -> setCurrent st c >>= evict st
@@ -138,6 +143,7 @@ newStoreWrapper mkStore = do
        , swSaveChat = saveChat st
        , swClearChatInput = clearChatInput st
        , swDeleteAllChatMessages = \c -> deleteAllChatMessages st c >>= evict st
+       , swDeleteChat = \c -> deleteChat st c >>= evict st
        , swGetMessageText = getMessageText st
 
        , swLog = logger
@@ -147,6 +153,15 @@ newStoreWrapper mkStore = do
 
 
   where
+    deleteChat :: MVar' WrapperState -> C.ChatId -> IO ()
+    deleteChat st' chatId = do
+      modifyMVar'_ st' $ \st -> do
+        st.store.srDeleteChat chatId
+
+        let cache2 = Map.delete chatId st.cache
+        pure $ st { cache = cache2 }
+
+
     deleteAllChatMessages :: MVar' WrapperState -> C.ChatId -> IO ()
     deleteAllChatMessages st' chatId = do
       modifyMVar'_ st' $ \st -> do
@@ -557,6 +572,11 @@ newSqliteStore dbPath onLog = do
        , srClearChatInput = \chatId -> do
             withConn_ $ \conn -> do
               Sq.execute conn "UPDATE chat SET chatInput = ? WHERE id = ?" (Nothing :: Maybe Text, chatId & \(C.ChatId cid) -> cid)
+
+       , srDeleteChat = \chatId -> do
+            withConn_ $ \conn -> do
+              Sq.execute conn "DELETE FROM chatMessage WHERE chatId = ?" (chatId & \(C.ChatId cid) -> (Sq.Only cid))
+              Sq.execute conn "DELETE FROM chat WHERE id = ?" (chatId & \(C.ChatId cid) -> (Sq.Only cid))
 
        , srDeleteAllChatMessages = \chatId -> do
             withConn_ $ \conn -> do

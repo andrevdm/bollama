@@ -217,6 +217,7 @@ data Store = Store
   , srSaveChatMessage :: !(ChatMessage -> IO ())
   , srClearChatInput :: !(ChatId -> IO ())
   , srDeleteAllChatMessages :: !(ChatId -> IO ())
+  , srDeleteChat :: !(ChatId -> IO ())
   , srGetMessageText :: !(MessageId -> IO (Maybe Text))
   }
 
@@ -233,6 +234,7 @@ data StoreWrapper = StoreWrapper
   , swAddStreamedChatContent :: !(ChatId -> MessageId -> O.Role -> Text -> IO (Either Text ()))
   , swClearChatInput :: !(ChatId -> IO (Either Text ()))
   , swDeleteAllChatMessages :: !(ChatId -> IO ())
+  , swDeleteChat :: !(ChatId -> IO ())
   , swGetMessageText :: !(MessageId -> IO (Maybe Text))
 
   , swLog :: !Logger
