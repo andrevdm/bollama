@@ -56,10 +56,10 @@ drawTabPs st =
         age2 = U.timeSpanToHuman age1
       in
       B.vLimit 1 $ B.hBox [
-          colTb col  70 p.modelName ""
-        , colTe col  11 (U.bytesToGb p.size_) ""
-        , colTe col  11 (U.bytesToGb p.sizeVRam) ""
-        , colTe col  40 age2 ""
+          colTb col 70 p.modelName ""
+        , colTe col 11 True (U.bytesToGb p.size_) ""
+        , colTe col 11 True (U.bytesToGb p.sizeVRam) ""
+        , colTe col 40 True age2 ""
         ]
 ----------------------------------------------------------------------------------------------------------------------
 

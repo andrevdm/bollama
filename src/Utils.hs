@@ -24,9 +24,9 @@ import Text.Printf (printf)
 import Core qualified as C
 
 
-parseParams :: C.ModelItem -> Maybe Double
-parseParams mi =
-  let sz = mi.miInfo.details.parameterSize
+parseParams :: O.ModelDetails -> Maybe Double
+parseParams md =
+  let sz = md.parameterSize
       (mul, drop') =
         if | Txt.isSuffixOf "B" sz -> (1_000_000_000.0, 1)
            | Txt.isSuffixOf "M" sz -> (1_000_000.0, 1)
@@ -38,6 +38,10 @@ parseParams mi =
     Nothing -> Nothing
     Just sz3 -> Just $ sz3 * mul
 
+
+formatParamSize :: Maybe Double -> Text
+formatParamSize Nothing = ""
+formatParamSize (Just d) = (Txt.pack (printf "%.2f" (d / 1_000_000_000.0))) <> "B"
 
 
 bytesToHuman :: Int64 -> Text

@@ -29,6 +29,7 @@ import Graphics.Vty qualified as Vty
 import Ollama qualified as O
 
 import Core qualified as C
+import Utils qualified as U
 import Widgets.Common as Wc
 
 
@@ -90,8 +91,8 @@ renderPopChatEditModel origSelected' selected item =
   B.hBox
     [ col 1 (if origSelected then ">" else " ") ""
     , col 70 item.miName ""
-    , col 11 (maybe "?" (.details.parameterSize) item.miShow) ""
-    , col 11 (maybe "" (\s -> maybe "" show s.modelInfo.llamaContextLength) item.miShow) ""
+    , colTe col 10 True (maybe "?" (\o -> (U.formatParamSize . U.parseParams $ o.details) <> "  ") item.miShow) ""
+    , colTe col 11 True ((maybe "" (\s -> maybe "" show s.modelInfo.llamaContextLength) item.miShow) <> "  ") ""
     , col 40 cs ""
     , col 50 usr ""
     ]

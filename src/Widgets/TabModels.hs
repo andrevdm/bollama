@@ -51,10 +51,13 @@ drawTabModels st =
   (
     B.vLimit 1 $ B.hBox [
         col 70 "Name" "colHeader"
-      , col 11 "Params" "colHeader"
+      , col 8 "Params" "colHeader"
+        , B.txt "  "
       , col 11 "Quant" "colHeader"
       , col 11 "Context" "colHeader"
-      , col 11 "Size" "colHeader"
+        , B.txt "  "
+      , col 8 "Size" "colHeader"
+        , B.txt "  "
       , col 17 "Family" "colHeader"
       , col 40 "Capabilities" "colHeader"
       , col 50 "User" "colHeader"
@@ -79,14 +82,17 @@ drawTabModels st =
         usr = fromMaybe "" $ Map.lookup itm.miName st._stAppConfig.acModelTag
       in
       B.vLimit 1 $ B.hBox [
-          colTb col  70 mi.name ""
-        , colTe col  11 (maybe (Wc.spinnerText st) (.details.parameterSize) sm) ""
-        , colTe col  11 (maybe "" (.details.quantizationLevel) sm) ""
-        , colTe col  11 (((.modelInfo.llamaContextLength) <$> sm) & join & maybe "" show) ""
-        , colTb col  11 (U.bytesToGb mi.size) ""
-        , colTe col  17 (maybe "" (.details.familiy) sm) ""
-        , colTe col  40 cs ""
-        , colTe col  50 usr ""
+          colTb col 70 mi.name ""
+        , colTe col 8 True (maybe (Wc.spinnerText st) (\o -> (U.formatParamSize . U.parseParams $ o.details)) sm) ""
+        , B.txt "  "
+        , colTe col 11 False (maybe "" (.details.quantizationLevel) sm) ""
+        , colTe col 11 True (((.modelInfo.llamaContextLength) <$> sm) & join & maybe "" show) ""
+        , B.txt "  "
+        , colTe col 8 True (U.bytesToGb mi.size) ""
+        , B.txt "  "
+        , colTe col 17 False (maybe "" (.details.familiy) sm) ""
+        , colTe col 40 False cs ""
+        , colTe col 50 False usr ""
         ]
 ----------------------------------------------------------------------------------------------------------------------
 
@@ -301,5 +307,11 @@ filterModels = do
             Txt.isInfixOf t (name <> " " <> capabilities <> " " <> tags)
           )
           vs
-  pure . reverse $ sortOn U.parseParams vs2
+
+  pure . reverse $ sortOn (\x ->
+                            case x.miShow of
+                              Nothing -> 0.0
+                              Just s -> fromMaybe 0 $ U.parseParams s.details
+                          )
+                          vs2
 ---------------------------------------------------------------------------------------------------

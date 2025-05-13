@@ -36,11 +36,18 @@ borderWithLabel' selected txt' w =
   w
 
 
-colTe :: (Int -> Text -> t -> t1) -> Int -> Text -> t -> t1
-colTe colF width txt' attr =
+colTe :: (Int -> Text -> t -> t1) -> Int -> Bool -> Text -> t -> t1
+colTe colF width prepend txt' attr =
   if (Txt.length txt' > width)
-    then colF width (Txt.take (width - 3) txt' <> "...") attr
-    else colF width txt' attr
+  then
+    colF width (Txt.take (width - 3) txt' <> "...") attr
+  else
+    let txtP =
+          if prepend
+          then (Txt.replicate (width - Txt.length txt') " " <> txt')
+          else txt'
+    in
+    colF width txtP attr
 
 
 colTb :: (Int -> Text -> t -> t1) -> Int -> Text -> t -> t1
