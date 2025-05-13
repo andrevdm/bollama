@@ -94,9 +94,7 @@ newInMemStore = do
 
     , srDeleteChat = \chatId -> do
         atomically $ TV.modifyTVar' store $ \m ->
-          case Map.lookup chatId m of
-            Nothing -> m
-            Just (c, _) -> Map.delete chatId m
+          Map.delete chatId m
 
     , srGetMessageText = \msgId -> do
         chats <- atomically $ TV.readTVar store

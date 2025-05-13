@@ -26,6 +26,7 @@ import Graphics.Vty qualified as Vty
 
 import Config qualified as Cfg
 import Core qualified as C
+import Utils qualified as U
 import Widgets.ErrorMessage qualified as Wer
 import Widgets.PopupConfirm qualified as WPcm
 import Widgets.PopupContextMenu qualified as WPctx
@@ -201,7 +202,7 @@ handleAppEventTick commandChan t = do
 
 handleAppEventGotTime :: BCh.BChan C.Command -> DT.UTCTime -> B.EventM C.Name C.UiState ()
 handleAppEventGotTime _commandChan t = do
-  C.stTime .= t
+  C.stNow .= t
 ---------------------------------------------------------------------------------------------------
 
 

@@ -277,7 +277,7 @@ handleTabChat commandChan eventChan store ev ve focused k ms =
       use (C.stChatsList . to BL.listSelectedElement) >>= \case
         Nothing -> pass
         Just (_, chat) -> do
-          C.stDebug .= "Default chat set: " <> chat.chatName
+          U.setFooterMessage 10 $ "Setting default chat: " <> chat.chatName
           C.stAppConfig %= \cfg2 -> cfg2 { C.acDefaultChat = Just (C.unChatId chat.chatId) }
           liftIO . Cfg.writeAppConfig =<< use C.stAppConfig
 
@@ -317,15 +317,15 @@ handleTabChat commandChan eventChan store ev ve focused k ms =
 
     exportChat = do
       use (C.stChatsList . to BL.listSelectedElement) >>= \case
-       Nothing -> C.stDebug .= "No chat selected"
+       Nothing -> U.setFooterMessage 10 "No chat selected"
        Just (_, chat1) -> do
           liftIO (store.swGetChat chat1.chatId) >>= \case
-            Nothing -> C.stDebug .= "No chat found"
+            Nothing -> U.setFooterMessage 10 "No chat found"
             Just (chat, ms') -> do
               C.stPopup .= Just C.PopupExport
               C.stPopExportOnOk .= \exportFormat path -> do
                 liftIO $ U.exportChatToFile chat ms' exportFormat path
-                C.stDebug .= "Exported chat to: " <> Txt.pack path
+                U.setFooterMessage 10 $ "Exported chat to: " <> Txt.pack path
 
 
     deleteChat = do
@@ -342,7 +342,7 @@ handleTabChat commandChan eventChan store ev ve focused k ms =
                  C.stChatInput . BE.editContentsL %= TxtZ.clearZipper
                  liftIO $ st._stStore.swDeleteChat chat.chatId
                  liftIO . BCh.writeBChan commandChan $ C.CmdRefreshChatsList (Just . Right $ chat.chatId)
-                 C.stDebug .= "Deleted chat: " <> chat.chatName
+                 U.setFooterMessage 10 $ "Deleted chat: " <> chat.chatName
               )
               (\(e :: SomeException) -> do
                 st <- B.get
@@ -364,7 +364,7 @@ handleTabChat commandChan eventChan store ev ve focused k ms =
                  C.stChatInput . BE.editContentsL %= TxtZ.clearZipper
                  liftIO $ st._stStore.swDeleteAllChatMessages chat.chatId
                  liftIO . BCh.writeBChan commandChan $ C.CmdRefreshChatsList (Just . Right $ chat.chatId)
-                 C.stDebug .= "Deleted all chat messages: " <> chat.chatName
+                 U.setFooterMessage 10 $ "Deleted all chat messages: " <> chat.chatName
               )
               (\(e :: SomeException) -> do
                 st <- B.get
@@ -438,7 +438,7 @@ handleTabChat commandChan eventChan store ev ve focused k ms =
                     liftIO . store.swLog.lgError $ "Error sending message: " <> err
 
               Nothing -> do
-                C.stDebug .= "Invalid model name: " <> chat.chatModel
+                U.setFooterMessage 10 $ "Invalid model name: " <> chat.chatModel
                 editModel "Select a model"
 
 
@@ -468,7 +468,7 @@ handleButtonDown name button ms _loc =
       liftIO (store.swGetMessageText msgId) >>= \case
         Nothing -> pass
         Just msg -> do
-          C.stDebug .= "Copying message to clipboard"
+          U.setFooterMessage 5 "Copying message to clipboard"
           liftIO . Clip.setClipboard . Txt.unpack $ msg
 
     _ -> pass

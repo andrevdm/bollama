@@ -140,7 +140,7 @@ handleTabModels commandChan _ev ve focused k ms =
         Just selected -> do
           C.stAppConfig %= \cfg2 -> cfg2 { C.acDefaultModel = Just selected }
           liftIO . Cfg.writeAppConfig =<< use C.stAppConfig
-          C.stDebug .= "Default model set to: " <> selected
+          U.setFooterMessage 8 $ "Default model set to: " <> selected
 
     (Just C.NModelsList, Vty.KChar 'd', []) -> do
       B.gets (^?  C.stModelsList . BL.listSelectedElementL . to C.miName) >>= \case
@@ -165,10 +165,10 @@ handleTabModels commandChan _ev ve focused k ms =
     (Just C.NModelsList, Vty.KChar 't', []) -> do
       chats <- use C.stChatsList
       case find (\i -> i.chatName == "#Temp") chats of
-        Nothing -> C.stDebug .= "No temp chat" --TODO
+        Nothing -> U.setFooterMessage 8 $ "No temp chat" --TODO
         Just chat1 -> do
           B.gets (^?  C.stModelsList . BL.listSelectedElementL . to C.miName) >>= \case
-            Nothing -> C.stDebug .= "No model selected" --TODO
+            Nothing -> U.setFooterMessage 8 $ "No model selected" --TODO
             Just model -> do
               store <- use C.stStore
               now <- liftIO DT.getCurrentTime

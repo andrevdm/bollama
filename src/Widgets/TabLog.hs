@@ -79,7 +79,6 @@ handleTabLog _commandChan _ev ve _focused k ms = do
       pass
 
     _ -> do
-      --C.stDebug .= show (k, ms)
       B.zoom C.stLogList $ BL.handleListEventVi BL.handleListEvent ve
 
 
@@ -90,7 +89,7 @@ logUpdated ls (lvl, msg) = do
   C.stLogList %= BL.listMoveToEnd
 
   when (lvl `elem` [C.LlCritical, C.LlError, C.LlWarn]) $ do
-    C.stDebug .= (U.logLevelName lvl) <> ":" <> msg
+    U.setFooterMessage 10 $ (U.logLevelName lvl) <> ":" <> msg
 
   when (lvl `elem` [C.LlCritical, C.LlError]) $ do
     C.stErrorMessage .= Just msg

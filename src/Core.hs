@@ -108,10 +108,9 @@ unMessageId (MessageId t) = t
 data UiState = UiState
   { _stTick :: !Int
   , _stAppConfig :: !AppConfig
-  , _stTime :: !DT.UTCTime
   , _stTab :: !Tab
   , _stNow :: !DT.UTCTime
-  , _stDebug :: !Text
+  , _stFooterMessage :: !(Maybe (UTCTime, Text))
   , _stStore :: !StoreWrapper
   , _stLog :: !Logger
   , _stAttrMap :: !B.AttrMap
@@ -223,7 +222,6 @@ data Store = Store
 
 data StoreWrapper = StoreWrapper
   { swListChats :: !(IO [Chat])
-
   , swNewChat :: !(StreamingState -> Text -> Text -> ChatParams -> IO Chat)
   , swGetChat :: !(ChatId -> IO (Maybe (Chat, [ChatMessage])))
   , swSaveChat :: !(Chat -> IO ())

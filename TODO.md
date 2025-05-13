@@ -1,11 +1,8 @@
 # TODO
  - Update chat updatedAt field on change & resort chat list
  - key so sort by name/param size in model list and model popup
- - arg to select initial tab, and maybe chat too
  - evict timer + test eviction
- - scroll bar clicking
  - cmd arg to set URL
  - sort chat edit list
  - options UI
- - ? chat params: https://github.com/ollama/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values
- - ? popup stack? Probably not needed
+ - ? other chat params: https://github.com/ollama/ollama/blob/main/docs/modelfile.md#valid-parameters-and-values

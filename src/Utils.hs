@@ -7,6 +7,8 @@
 module Utils where
 
 import Verset
+import Brick qualified as B
+import Control.Lens ((.=), use)
 import Data.Aeson.Encode.Pretty qualified as Ae
 import Data.Aeson qualified as Ae
 import Data.ByteString.Lazy qualified as BSL
@@ -14,6 +16,7 @@ import Data.List (findIndex)
 import Data.Text.Encoding qualified as TxtE
 import Data.Text.IO qualified as Txt
 import Data.Text qualified as Txt
+import Data.Time qualified as Dt
 import Data.UUID.V4 qualified as UU
 import Ollama qualified as O
 import Text.Printf (printf)
@@ -169,6 +172,13 @@ exportChatJson c ms =
       ]
   in
   TxtE.decodeUtf8 . BSL.toStrict . Ae.encodePretty $ export
+
+
+setFooterMessage :: Int -> Text -> B.EventM C.Name C.UiState ()
+setFooterMessage seconds msg = do
+  now <- use C.stNow
+  let until = Dt.addUTCTime (fromIntegral seconds) now
+  C.stFooterMessage .= Just (until, msg)
 
 
 exportChatText :: C.Chat -> [C.ChatMessage] -> Text

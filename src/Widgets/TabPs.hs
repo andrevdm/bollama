@@ -98,7 +98,8 @@ handleTabPs _commandChan _ev ve focused k ms = do
             , responseTimeOut = Nothing
             , options = Nothing
             }
-          C.stDebug .= "stopping " <> name
+
+          U.setFooterMessage 10 $ "stopping " <> name
 
       pass
 

@@ -100,7 +100,6 @@ handleEventPopupExport _commandChan ev ve = do
   st <- B.get
   let focused = BF.focusGetCurrent st._stPopExportFocus
 
-  C.stDebug .= ""
   case ve of
     Vty.EvKey k ms -> do
       case (focused, k, ms) of

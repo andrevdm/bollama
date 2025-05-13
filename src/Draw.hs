@@ -70,7 +70,16 @@ drawUI st =
 ---------------------------------------------------------------------------------------------------
 footer :: C.UiState -> B.Widget C.Name
 footer st =
-  B.vLimit 1 . B.withAttr (B.attrName "footer") $ B.txt (Cfg.verText <> " | ") <+> (B.txt st._stDebug) <+> B.fill ' '
+  let
+    now = st._stNow
+    msg = case st._stFooterMessage of
+      Nothing -> ""
+      Just (untilDt, msg') ->
+        if untilDt >= now
+        then msg'
+        else ""
+  in
+  B.vLimit 1 . B.withAttr (B.attrName "footer") $ B.txt (Cfg.verText <> " | ") <+> (B.txt msg) <+> B.fill ' '
 ---------------------------------------------------------------------------------------------------
 
 
