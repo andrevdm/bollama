@@ -1,5 +1,6 @@
 
 
+
 # BOllama
 
 Simple Ollama TUI
@@ -110,7 +111,7 @@ NB this is formatted better in the app itself, this is here for reference only
 <div style='margin-left: 15px'>
 
 Bollama is a simple TUI for Ollama.
-  version: 0.1.0.12 beta
+  version: 0.1.0.15 beta
 
 
 
@@ -376,6 +377,7 @@ Here is the default theme
     tabUnselected              , black                 ,  grey
     time                       , yellow                ,  -
     version                    , yellow                ,  grey
+    copyText                   , dark_green            ,  #909090
 
     msgDetailBlock             , white                 , black
     msgDetailTitle             , green                 , black                , bold
@@ -401,8 +403,23 @@ Here is the default theme
     helpKeyShortcut            , green                 ,  black
     helpKeyAction              , grey                  ,  black
 
-
     invalidFormInputAttr       , black                 ,  red
+
+    radio                      , cornflower_blue       ,  -
+    radioFocused               , black                 ,  cornflower_blue
+
+
+    -- fileBrowserAttr
+    -- fileBrowserCurrentDirectoryAttr
+    -- fileBrowserSelectionInfoAttr
+    -- fileBrowserSelectedAttr
+    -- fileBrowserDirectoryAttr
+    -- fileBrowserBlockDeviceAttr
+    -- fileBrowserRegularFileAttr
+    -- fileBrowserCharacterDeviceAttr
+    -- fileBrowserNamedPipeAttr
+    -- fileBrowserSymbolicLinkAttr
+    -- fileBrowserUnixSocketAttr
 
 
 
@@ -427,7 +444,9 @@ It looks something like this
 {
     "avoid_emojis": false,
     "default_tab": "chat",
-    "ollama_url": "http://localhost:11434"
+    "ollama_url": "http://localhost:11434",
+    "allow_mouse": "true",
+    "default_export_dir": "/home/user/temp"
 }
 
 
