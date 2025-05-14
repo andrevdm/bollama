@@ -3,6 +3,7 @@
 
 
 
+
 # BOllama
 
 Simple Ollama TUI
@@ -113,7 +114,7 @@ NB this is formatted better in the app itself, this is here for reference only
 <div style='margin-left: 15px'>
 
 Bollama is a simple TUI for Ollama.
-  version: 0.1.0.16 beta
+  version: 0.1.0.18 beta
 
 
 
@@ -385,15 +386,15 @@ Here is the default theme
     msgDetailTitle             , green                 , black                , bold
     msgDetailText              , tan                   , black
 
-    popup                      , black                 ,  pale_turquoise4
-    popupHeader                , blue3                 ,  pale_turquoise4
+    popup                      , -                     ,  -
+    popupHeader                , dodger_blue1          ,  -
     popupButtonOk              , green                 ,  black
     popupButtonOkFocused       , black                 ,  green
     popupButtonCancel          , red                   ,  black
+    popupButtonCancelFocused   , black                 ,  red
     popupButtonDisabled        , black                 ,  grey35
     popupButtonDisabledFocused , black                 ,  grey
-    popupButtonCancelFocused   , black                 ,  red
-    popupTableHeader           , deep_pink4            ,  pale_turquoise4
+    popupTableHeader           , deep_pink4            ,  -
 
     popupError                 , black                 ,  red3
     popupErrorText             , black                 ,  red3

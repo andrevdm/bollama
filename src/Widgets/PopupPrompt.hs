@@ -37,7 +37,7 @@ drawPopupPrompt st =
   B.vLimit 10 $
   B.hLimit 180 $
   Wc.borderWithLabel' True (fromMaybe "Enter text" st._stPopPromptTitle) $
-  B.withAttr (B.attrName "popup") $
+  B.withDefAttr (B.attrName "popup") $
   B.padAll 1 $
   ( ( B.vLimit 1 $
       BE.renderEditor (B.txt . Txt.unlines) (BF.focusGetCurrent st._stPopPromptFocus == Just C.NPopPromptEdit) st._stPopPromptEdit

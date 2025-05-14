@@ -34,7 +34,7 @@ drawPopupConfirm st =
   B.vLimit 14 $
   B.hLimit 150 $
   Wc.borderWithLabel' True (fromMaybe "Confirm" st._stPopConfirmTitle) $
-  B.withAttr (B.attrName "popup") $
+  B.withDefAttr (B.attrName "popup") $
   B.padAll 1 $
   ( ( B.withAttr (B.attrName "popupHeader") $
       B.txt (fromMaybe "Are you sure?" st._stPopConfirmTitle)

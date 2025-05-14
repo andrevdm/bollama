@@ -44,7 +44,7 @@ drawPopupChatEdit st =
   B.vLimit 30 $
   B.hLimit 191 $
   Wc.borderWithLabel' True (fromMaybe "Chat" st._stPopChatEditTitle) $
-  B.withAttr (B.attrName "popup") $
+  B.withDefAttr (B.attrName "popup") $
   B.padAll 1 $
   ( BFm.renderForm st._stPopChatEditForm
     <=>

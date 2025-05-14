@@ -187,15 +187,15 @@ defaultTheme = [r|
     msgDetailTitle             , green                 , black                , bold
     msgDetailText              , tan                   , black
 
-    popup                      , black                 ,  pale_turquoise4
-    popupHeader                , blue3                 ,  pale_turquoise4
+    popup                      , -                     ,  -
+    popupHeader                , dodger_blue1          ,  -
     popupButtonOk              , green                 ,  black
     popupButtonOkFocused       , black                 ,  green
     popupButtonCancel          , red                   ,  black
+    popupButtonCancelFocused   , black                 ,  red
     popupButtonDisabled        , black                 ,  grey35
     popupButtonDisabledFocused , black                 ,  grey
-    popupButtonCancelFocused   , black                 ,  red
-    popupTableHeader           , deep_pink4            ,  pale_turquoise4
+    popupTableHeader           , deep_pink4            ,  -
 
     popupError                 , black                 ,  red3
     popupErrorText             , black                 ,  red3
