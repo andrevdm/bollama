@@ -345,7 +345,7 @@ Where:
 
 - colours are either a #hex-code or a name. Known names are show on the `Colours` tab
     See https://rich.readthedocs.io/en/stable/appendix/colors.html
-- true colour is supported if your terminal supports it and has the correct terminfo 
+- true colour is supported if your terminal supports it and has the correct terminfo
     (e.g `TERM=tmux-256color` or `TERM=xterm-256color` and `COLORTERM=truecolor`).
     See https://github.com/termstandard/colors
 
