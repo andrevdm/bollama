@@ -38,6 +38,9 @@ import Ollama qualified as O
 
 import Config qualified as Cfg
 import Core qualified as C
+import Logging qualified as L
+import Messages qualified as M
+import Storage.Store qualified as Sr
 import Utils qualified as U
 import Widgets.Common as Wc
 import Widgets.TabChat qualified as WTct
@@ -70,7 +73,7 @@ drawTabModels st =
     BL.renderList (\_ e -> renderModelListItem e) (BF.focusGetCurrent st._stFocusModels == Just C.NModelsList) (st._stModelsList)
 
   where
-    renderModelListItem :: C.ModelItem -> B.Widget C.Name
+    renderModelListItem :: M.ModelItem -> B.Widget C.Name
     renderModelListItem itm =
       let
         mi = itm.miInfo
@@ -119,14 +122,14 @@ handleTabModels commandChan _ev ve focused k ms =
       C.stPopPromptOnOk .= \txt -> do
         C.stModelsFilter .= txt
         filteredModels <- filterModels
-        wasSelected <- B.gets (^?  C.stModelsList . BL.listSelectedElementL . to C.miName)
+        wasSelected <- B.gets (^?  C.stModelsList . BL.listSelectedElementL . to M.miName)
         let ix = findIndex (\x -> Just x.miName == wasSelected) filteredModels
         C.stModelsList %= BL.listReplace (V.fromList filteredModels) ix
 
     (Just C.NModelsList, Vty.KChar 'c', []) -> do
       tags <- do
         cfg <- use C.stAppConfig
-        B.gets (^?  C.stModelsList . BL.listSelectedElementL . to C.miName) >>= \case
+        B.gets (^?  C.stModelsList . BL.listSelectedElementL . to M.miName) >>= \case
           Nothing -> pure ""
           Just selected -> pure . maybe "" (Txt.strip . Txt.replace "\n" " " . Txt.replace "\r" " ") $ Map.lookup selected cfg.acModelTag
 
@@ -134,14 +137,14 @@ handleTabModels commandChan _ev ve focused k ms =
       C.stPopPromptEdit . BE.editContentsL .= TxtZ.textZipper [tags] Nothing
       C.stPopPromptTitle .= Just "User comment edit"
       C.stPopPromptOnOk .= \txt -> do
-        B.gets (^?  C.stModelsList . BL.listSelectedElementL . to C.miName) >>= \case
+        B.gets (^?  C.stModelsList . BL.listSelectedElementL . to M.miName) >>= \case
           Nothing -> pass
           Just selected -> do
             C.stAppConfig %= \cfg2 -> cfg2 { C.acModelTag = Map.insert selected txt cfg2.acModelTag }
             liftIO . Cfg.writeAppConfig =<< use C.stAppConfig
 
     (Just C.NModelsList, Vty.KChar '*', []) -> do
-      B.gets (^?  C.stModelsList . BL.listSelectedElementL . to C.miName) >>= \case
+      B.gets (^?  C.stModelsList . BL.listSelectedElementL . to M.miName) >>= \case
         Nothing -> pass
         Just selected -> do
           C.stAppConfig %= \cfg2 -> cfg2 { C.acDefaultModel = Just selected }
@@ -149,7 +152,7 @@ handleTabModels commandChan _ev ve focused k ms =
           U.setFooterMessage 8 $ "Default model set to: " <> selected
 
     (Just C.NModelsList, Vty.KChar 'd', []) -> do
-      B.gets (^?  C.stModelsList . BL.listSelectedElementL . to C.miName) >>= \case
+      B.gets (^?  C.stModelsList . BL.listSelectedElementL . to M.miName) >>= \case
         Nothing -> pass
         Just selected -> do
           C.stPopup .= Just C.PopupConfirm
@@ -173,15 +176,15 @@ handleTabModels commandChan _ev ve focused k ms =
       case find (\i -> i.chatName == "#Temp") chats of
         Nothing -> U.setFooterMessage 8 $ "No temp chat" --TODO
         Just chat1 -> do
-          B.gets (^?  C.stModelsList . BL.listSelectedElementL . to C.miName) >>= \case
+          B.gets (^?  C.stModelsList . BL.listSelectedElementL . to M.miName) >>= \case
             Nothing -> U.setFooterMessage 8 $ "No model selected" --TODO
             Just model -> do
               store <- use C.stStore
               now <- liftIO DT.getCurrentTime
 
               let chat2 = chat1
-                    { C.chatModel = model
-                    , C.chatUpdatedAt = now
+                    { M.chatModel = model
+                    , M.chatUpdatedAt = now
                     }
 
               C.stTab .= C.TabChat
@@ -193,7 +196,7 @@ handleTabModels commandChan _ev ve focused k ms =
     -- Use current model for a new chat
     (Just C.NModelsList, Vty.KChar 'n', []) -> do
       C.stTab .= C.TabChat
-      modelName <- B.gets (^?  C.stModelsList . BL.listSelectedElementL . to C.miName)
+      modelName <- B.gets (^?  C.stModelsList . BL.listSelectedElementL . to M.miName)
       WTct.startNewChat commandChan modelName
 
 
@@ -212,7 +215,7 @@ handleAppEventGotModelList commandChan ms1 = do
   prevList <- use C.stModelsList
 
   let ms2 = ms1
-  let ms = ms2 <&> \m -> C.ModelItem
+  let ms = ms2 <&> \m -> M.ModelItem
         { miName = m.name
         , miInfo = m
         , miShow = Nothing
@@ -228,7 +231,7 @@ handleAppEventGotModelList commandChan ms1 = do
   C.stModelListLoading .= False
 
   C.stModelShowLoading .= True
-  liftIO . BCh.writeBChan commandChan $ C.CmdRefreshModelShow (ms <&> C.miName)
+  liftIO . BCh.writeBChan commandChan $ C.CmdRefreshModelShow (ms <&> M.miName)
 
 
 
@@ -239,7 +242,7 @@ handleAppEventGotModelShow _commandChan (m, s) = do
 
   let vs2 = vs1 <&> \old ->
        if old.miName == m
-         then old { C.miShow = Just s }
+         then old { M.miShow = Just s }
          else old
 
       selected = snd <$> BL.listSelectedElement l1
@@ -290,7 +293,7 @@ refreshModelsShow cfg names eventChan = do
 ---------------------------------------------------------------------------------------------------
 -- Utils
 ---------------------------------------------------------------------------------------------------
-filterModels :: B.EventM C.Name C.UiState [C.ModelItem]
+filterModels :: B.EventM C.Name C.UiState [M.ModelItem]
 filterModels = do
   vs <- use C.stModels
   t <- Txt.strip . Txt.toLower <$> use C.stModelsFilter

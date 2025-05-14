@@ -26,7 +26,8 @@ import Graphics.Vty qualified as Vty
 
 import Config qualified as Cfg
 import Core qualified as C
-import Utils qualified as U
+import Logging qualified as L
+import Storage.Store qualified as Sr
 import Widgets.ErrorMessage qualified as Wer
 import Widgets.PopupConfirm qualified as WPcm
 import Widgets.PopupContextMenu qualified as WPctx
@@ -210,7 +211,7 @@ handleAppEventGotTime _commandChan t = do
 ----------------------------------------------------------------------------------------------------------------------
 -- background thread
 ----------------------------------------------------------------------------------------------------------------------
-runCommands :: TV.TVar C.RunState -> C.AppConfig -> BCh.BChan C.Command -> BCh.BChan C.UiEvent -> C.StoreWrapper -> IO ()
+runCommands :: TV.TVar C.RunState -> C.AppConfig -> BCh.BChan C.Command -> BCh.BChan C.UiEvent -> Sr.StoreWrapper -> IO ()
 runCommands rs' cfg commandChan eventChan store = forever $ do
   BCh.readBChan commandChan >>= \case
     C.CmdRefreshModelList -> WTmo.refreshModelsList eventChan

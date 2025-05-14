@@ -29,6 +29,9 @@ import Graphics.Vty qualified as Vty
 import Ollama qualified as O
 
 import Core qualified as C
+import Messages qualified as M
+import Logging qualified as L
+import Storage.Store qualified as Sr
 import Utils qualified as U
 import Widgets.Common as Wc
 
@@ -73,7 +76,7 @@ drawPopupChatEdit st =
   )
 
 
-renderPopChatEditModel :: Maybe C.ModelItem -> Bool -> C.ModelItem -> B.Widget C.Name
+renderPopChatEditModel :: Maybe M.ModelItem -> Bool -> M.ModelItem -> B.Widget C.Name
 renderPopChatEditModel origSelected' selected item =
   let
     attrName =
@@ -85,7 +88,7 @@ renderPopChatEditModel origSelected' selected item =
         Just (Just cs') -> Txt.intercalate ", " cs'
         _ -> ""
     usr = item.miTag
-    origSelected = (C.miName <$> origSelected') == Just item.miName
+    origSelected = (M.miName <$> origSelected') == Just item.miName
   in
   B.vLimit 1 . B.withAttr (B.attrName attrName) $
   B.hBox
@@ -98,13 +101,13 @@ renderPopChatEditModel origSelected' selected item =
     ]
 
 
-mkPopChatEditForm :: C.ChatEditInfo -> BFm.Form C.ChatEditInfo C.UiEvent C.Name
+mkPopChatEditForm :: M.ChatEditInfo -> BFm.Form M.ChatEditInfo C.UiEvent C.Name
 mkPopChatEditForm cei =
   BFm.newForm
-    [ ((col 15 "Name:" "popupHeader") <+>) @@= editTextFieldWithValidate C.ceiName C.NPopChatEditFormName (\n -> (not . Txt.null $ n) && isNameValid n)
-    , ((col 15 "Context:" "popupHeader") <+>) @@= editMaybeFieldWithValidate (C.ceiParams . C.cpContextSize) C.NPopChatEditFormCtx (readMaybe @Int . Txt.unpack) show
-    , ((col 15 "Temperature:" "popupHeader") <+>) @@= editMaybeFieldWithValidate (C.ceiParams . C.cpTemp) C.NPopChatEditFormTemp (readMaybe @Double . Txt.unpack) show
-    , ((col 15 "Model:" "popupHeader") <+>) @@= BFm.listField (\s -> V.fromList s._ceiModels) C.ceiSelectedModel (renderPopChatEditModel cei._ceiSelectedModel) 1 C.NPopChatEditFormModels
+    [ ((col 15 "Name:" "popupHeader") <+>) @@= editTextFieldWithValidate M.ceiName C.NPopChatEditFormName (\n -> (not . Txt.null $ n) && isNameValid n)
+    , ((col 15 "Context:" "popupHeader") <+>) @@= editMaybeFieldWithValidate (M.ceiParams . M.cpContextSize) C.NPopChatEditFormCtx (readMaybe @Int . Txt.unpack) show
+    , ((col 15 "Temperature:" "popupHeader") <+>) @@= editMaybeFieldWithValidate (M.ceiParams . M.cpTemp) C.NPopChatEditFormTemp (readMaybe @Double . Txt.unpack) show
+    , ((col 15 "Model:" "popupHeader") <+>) @@= BFm.listField (\s -> V.fromList s._ceiModels) M.ceiSelectedModel (renderPopChatEditModel cei._ceiSelectedModel) 1 C.NPopChatEditFormModels
     ]
     cei
   where

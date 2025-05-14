@@ -52,10 +52,13 @@ import Text.Emoji qualified as Emj
 import Text.Printf (printf)
 import Text.Unidecode qualified as Uni
 
-import Config qualified as Cfg
 import Core qualified as C
+import Config qualified as Cfg
+import Logging qualified as L
+import Messages qualified as M
+import Storage.Store qualified as Sr
 import Utils qualified as U
-import Widgets.Common as Wc
+import Widgets.Common qualified as Wc
 import Widgets.PopupContextMenu qualified as WPctx
 import Widgets.PopupEditChat qualified as WPce
 
@@ -91,7 +94,7 @@ drawTabChat st =
     drawChatMainRight =
       let
         inputEditSelected = BF.focusGetCurrent st._stFocusChat == Just C.NChatInputEdit
-        modelName = fromMaybe "" $ st._stChatCurrent <&> (C.chatModel)
+        modelName = fromMaybe "" $ st._stChatCurrent <&> (M.chatModel)
       in
       Wc.borderWithLabel' False "Conversation"
       ( (B.withAttr (B.attrName "colHeader") $ B.txt "Model: ") <+> (B.txt modelName)
@@ -108,15 +111,15 @@ drawTabChat st =
       B.vLimit 8
       (
         Wc.borderWithLabel' inputEditSelected "Input (ctrl-s to send)"
-        ( case C.chatStreaming <$> st._stChatCurrent of
+        ( case M.chatStreaming <$> st._stChatCurrent of
             Nothing -> B.fill ' '
-            Just C.SsNotStreaming -> (BE.renderEditor (B.txt . Txt.unlines) inputEditSelected st._stChatInput)
-            Just C.SsStreaming -> Wc.spinner2 st <+> B.fill ' '
+            Just M.SsNotStreaming -> (BE.renderEditor (B.txt . Txt.unlines) inputEditSelected st._stChatInput)
+            Just M.SsStreaming -> Wc.spinner2 st <+> B.fill ' '
         )
       )
 
 
-    renderChatMsgItem :: Bool -> Int -> Bool -> C.ChatMessage -> B.Widget C.Name
+    renderChatMsgItem :: Bool -> Int -> Bool -> M.ChatMessage -> B.Widget C.Name
     renderChatMsgItem listSelected ix itemSelected msg =
       let attrName =
             if listSelected && itemSelected
@@ -133,7 +136,7 @@ drawTabChat st =
       B.hBox
         [ B.hBox
             [ B.vBox
-                [ col 15 (show msg.msgRole) attrName
+                [ Wc.col 15 (show msg.msgRole) attrName
                 , if st._stAppConfig.acAllowMouse
                   then B.txt " " <+> B.withAttr (B.attrName "copyText") (B.clickable (C.NChatMsgCopy msg.msgId) $ B.txt "[copy]")
                   else B.emptyWidget
@@ -162,7 +165,7 @@ drawTabChat st =
           c -> Uni.unidecode c
 
 
-    renderChatMsgDetail :: Bool -> C.ChatMessage -> B.Widget C.Name
+    renderChatMsgDetail :: Bool -> M.ChatMessage -> B.Widget C.Name
     renderChatMsgDetail _selected msg =
       if st._stShowMessageDetail
       then
@@ -171,12 +174,12 @@ drawTabChat st =
         B.vBox
           [ B.withAttr (B.attrName "msgDetailTitle") (B.txt "Model: ") <+> (B.withAttr (B.attrName "msgDetailText") (B.txt msg.msgModel))
           , B.withAttr (B.attrName "msgDetailTitle") (B.txt "Created At: ") <+> (B.withAttr (B.attrName "msgDetailText") (B.txt (Txt.pack $ DT.formatTime DT.defaultTimeLocale "%Y-%m-%d %H:%M:%S" msg.msgCreatedAt)))
-          , B.withAttr (B.attrName "msgDetailTitle") (B.txt "Total Duration: ") <+> (B.withAttr (B.attrName "msgDetailText") (B.txt (formatDuration . join $ C.cdTotalDuration <$> msg.msgDetail)))
-          , B.withAttr (B.attrName "msgDetailTitle") (B.txt "Load Duration: ") <+> (B.withAttr (B.attrName "msgDetailText") (B.txt (formatDuration . join $ C.cdLoadDuration <$> msg.msgDetail)))
-          , B.withAttr (B.attrName "msgDetailTitle") (B.txt "Prompt Eval Count: ") <+> (B.withAttr (B.attrName "msgDetailText") (B.txt (showMaybe . join $ C.cdPromptEvalCount <$> msg.msgDetail)))
-          , B.withAttr (B.attrName "msgDetailTitle") (B.txt "Prompt Eval Duration: ") <+> (B.withAttr (B.attrName "msgDetailText") (B.txt (formatDuration . join $ C.cdLoadDuration <$> msg.msgDetail)))
-          , B.withAttr (B.attrName "msgDetailTitle") (B.txt "Eval Count: ") <+> (B.withAttr (B.attrName "msgDetailText") (B.txt (showMaybe . join $ C.cdEvalCount <$> msg.msgDetail)))
-          , B.withAttr (B.attrName "msgDetailTitle") (B.txt "Eval Duration: ") <+> (B.withAttr (B.attrName "msgDetailText") (B.txt (formatDuration . join $ C.cdEvalDuration <$> msg.msgDetail)))
+          , B.withAttr (B.attrName "msgDetailTitle") (B.txt "Total Duration: ") <+> (B.withAttr (B.attrName "msgDetailText") (B.txt (formatDuration . join $ M.cdTotalDuration <$> msg.msgDetail)))
+          , B.withAttr (B.attrName "msgDetailTitle") (B.txt "Load Duration: ") <+> (B.withAttr (B.attrName "msgDetailText") (B.txt (formatDuration . join $ M.cdLoadDuration <$> msg.msgDetail)))
+          , B.withAttr (B.attrName "msgDetailTitle") (B.txt "Prompt Eval Count: ") <+> (B.withAttr (B.attrName "msgDetailText") (B.txt (showMaybe . join $ M.cdPromptEvalCount <$> msg.msgDetail)))
+          , B.withAttr (B.attrName "msgDetailTitle") (B.txt "Prompt Eval Duration: ") <+> (B.withAttr (B.attrName "msgDetailText") (B.txt (formatDuration . join $ M.cdLoadDuration <$> msg.msgDetail)))
+          , B.withAttr (B.attrName "msgDetailTitle") (B.txt "Eval Count: ") <+> (B.withAttr (B.attrName "msgDetailText") (B.txt (showMaybe . join $ M.cdEvalCount <$> msg.msgDetail)))
+          , B.withAttr (B.attrName "msgDetailTitle") (B.txt "Eval Duration: ") <+> (B.withAttr (B.attrName "msgDetailText") (B.txt (formatDuration . join $ M.cdEvalDuration <$> msg.msgDetail)))
           ]
       else
         B.emptyWidget
@@ -196,10 +199,10 @@ drawTabChat st =
       Txt.pack $ printf "%02d:%02d.%03d" mins secs millis
 
 
-    renderChatItem :: Bool -> C.Chat -> B.Widget C.Name
+    renderChatItem :: Bool -> M.Chat -> B.Widget C.Name
     renderChatItem _selected chat =
       let defaultMarker =
-            if Just chat.chatName == st._stAppConfig.acDefaultChat || Just (C.unChatId chat.chatId) == st._stAppConfig.acDefaultChat
+            if Just chat.chatName == st._stAppConfig.acDefaultChat || Just (M.unChatId chat.chatId) == st._stAppConfig.acDefaultChat
             then B.withAttr (B.attrName "chatDefaultMarker") $ B.txt "*"
             else B.txt " "
       in
@@ -215,7 +218,7 @@ drawTabChat st =
 handleTabChat
   :: BCh.BChan C.Command
   -> BCh.BChan C.UiEvent
-  -> C.StoreWrapper
+  -> Sr.StoreWrapper
   -> B.BrickEvent C.Name C.UiEvent
   -> Vty.Event
   -> Maybe C.Name
@@ -279,7 +282,7 @@ handleTabChat commandChan eventChan store ev ve focused k ms =
         Nothing -> pass
         Just (_, chat) -> do
           U.setFooterMessage 10 $ "Setting default chat: " <> chat.chatName
-          C.stAppConfig %= \cfg2 -> cfg2 { C.acDefaultChat = Just (C.unChatId chat.chatId) }
+          C.stAppConfig %= \cfg2 -> cfg2 { C.acDefaultChat = Just (M.unChatId chat.chatId) }
           liftIO . Cfg.writeAppConfig =<< use C.stAppConfig
 
 
@@ -325,7 +328,7 @@ handleTabChat commandChan eventChan store ev ve focused k ms =
             Just (chat, ms') -> do
               C.stPopup .= Just C.PopupExport
               C.stPopExportOnOk .= \exportFormat path -> do
-                liftIO $ U.exportChatToFile chat ms' exportFormat path
+                liftIO $ M.exportChatToFile chat ms' exportFormat path
                 U.setFooterMessage 10 $ "Exported chat to: " <> Txt.pack path
 
 
@@ -399,20 +402,20 @@ handleTabChat commandChan eventChan store ev ve focused k ms =
        Just chat -> do
          st <- B.get
 
-         C.stPopChatEditForm .= BFm.setFormConcat (Wc.vBoxWithPadding 1) (WPce.mkPopChatEditForm C.ChatEditInfo
-           { C._ceiModels = st._stModels
-           , C._ceiSelectedModel = find (\i -> i.miName == chat.chatModel) st._stModels
-           , C._ceiName = chat.chatName
-           , C._ceiParams = chat.chatParams
+         C.stPopChatEditForm .= BFm.setFormConcat (Wc.vBoxWithPadding 1) (WPce.mkPopChatEditForm M.ChatEditInfo
+           { M._ceiModels = st._stModels
+           , M._ceiSelectedModel = find (\i -> i.miName == chat.chatModel) st._stModels
+           , M._ceiName = chat.chatName
+           , M._ceiParams = chat.chatParams
            })
 
          C.stPopup .= Just C.PopupChatEdit
          C.stPopChatEditTitle .= Just title
          C.stPopChatEditOnOk .= \name model prms -> do
            let chat2 = chat
-                { C.chatName = name
-                , C.chatModel = model.miName
-                , C.chatParams = prms
+                { M.chatName = name
+                , M.chatModel = model.miName
+                , M.chatParams = prms
                 }
            liftIO $ store.swSaveChat chat2
            C.stChatCurrent .= Just chat2
@@ -427,9 +430,9 @@ handleTabChat commandChan eventChan store ev ve focused k ms =
           unless (Txt.null txt) $ do
             findModel chat.chatModel >>= \case
               Just _model -> do
-                liftIO (store.swAddMessage cid O.User C.SsStreaming chat.chatModel txt) >>= \case
+                liftIO (store.swAddMessage cid O.User M.SsStreaming chat.chatModel txt) >>= \case
                   Right newMsg -> do
-                    C.stChatCurrent .= Just chat {C.chatStreaming = C.SsStreaming}
+                    C.stChatCurrent .= Just chat {M.chatStreaming = M.SsStreaming}
                     C.stChatInput . BE.editContentsL %= TxtZ.clearZipper
                     _ <- liftIO $ store.swClearChatInput cid
                     handleChatUpdated cid
@@ -475,7 +478,7 @@ handleButtonDown name button ms _loc =
     _ -> pass
 
 
-handleChatUpdated :: C.ChatId -> B.EventM C.Name C.UiState ()
+handleChatUpdated :: M.ChatId -> B.EventM C.Name C.UiState ()
 handleChatUpdated chatId  = do
   use C.stChatCurrent >>= \case
     Just currentChat | currentChat.chatId == chatId -> do
@@ -485,7 +488,7 @@ handleChatUpdated chatId  = do
       pass
 
 
-handleChatStreamResponseDone :: BCh.BChan C.Command -> C.ChatId -> Maybe C.MessageDetail -> B.EventM C.Name C.UiState ()
+handleChatStreamResponseDone :: BCh.BChan C.Command -> M.ChatId -> Maybe M.MessageDetail -> B.EventM C.Name C.UiState ()
 handleChatStreamResponseDone _commandChan chatId detail = do
   -- Save to store
   store <- use C.stStore
@@ -503,12 +506,12 @@ startNewChat commandChan defaultModel = do
   store <- use C.stStore
   C.stPopup .= Just C.PopupChatEdit
   C.stPopChatEditTitle .= Just "New chat"
-  C.stPopChatEditForm .= BFm.setFormConcat (Wc.vBoxWithPadding 1) (WPce.mkPopChatEditForm C.emptyChatEditInfo
-    { C._ceiModels = st._stModels
-    , C._ceiSelectedModel = find (\i -> Just i.miName == defaultModel) st._stModels
+  C.stPopChatEditForm .= BFm.setFormConcat (Wc.vBoxWithPadding 1) (WPce.mkPopChatEditForm M.emptyChatEditInfo
+    { M._ceiModels = st._stModels
+    , M._ceiSelectedModel = find (\i -> Just i.miName == defaultModel) st._stModels
     })
   C.stPopChatEditOnOk .= \name model prms -> do
-    chat <- liftIO $ store.swNewChat C.SsNotStreaming name model.miName prms
+    chat <- liftIO $ store.swNewChat M.SsNotStreaming name model.miName prms
     liftIO . BCh.writeBChan commandChan $ C.CmdRefreshChatsList (Just . Right $ chat.chatId)
 
 
@@ -519,7 +522,7 @@ handleChatSelectionUpdate = do
 
   store <- use C.stStore
   selectedChat <- use (C.stChatsList . to BL.listSelectedElement)
-  _ <- liftIO $ store.swSetCurrent ((C.chatId) . snd <$> selectedChat)
+  _ <- liftIO $ store.swSetCurrent ((M.chatId) . snd <$> selectedChat)
 
   changeChatToStoreCurrent
 
@@ -532,7 +535,7 @@ saveStoreCurrentChat = do
     Just (_, chat1, _) -> do
       st <- B.get
       let chat2 = chat1
-            { C.chatInput = st._stChatInput ^. BE.editContentsL . to TxtZ.getText . to Txt.unlines . to Txt.strip
+            { M.chatInput = st._stChatInput ^. BE.editContentsL . to TxtZ.getText . to Txt.unlines . to Txt.strip
             }
       liftIO $ store.swSaveChat chat2
 
@@ -547,7 +550,7 @@ changeChatToStoreCurrent = do
       C.stChatInput . BE.editContentsL .= TxtZ.textZipper [storeCurrentChat.chatInput] Nothing
       C.stChatMsgs .= ms
       B.vScrollToEnd (B.viewportScroll C.NChatScroll)
-      liftIO . Txt.appendFile "/home/andre/temp/a.txt" $ Txt.intercalate "\n" $ C.msgText <$> ms
+      liftIO . Txt.appendFile "/home/andre/temp/a.txt" $ Txt.intercalate "\n" $ M.msgText <$> ms
 
     Nothing -> do
       C.stChatCurrent .= Nothing
@@ -555,7 +558,7 @@ changeChatToStoreCurrent = do
       C.stChatMsgs .= []
 
 
-gotChatsList :: [C.Chat] -> Maybe C.ChatId -> B.EventM C.Name C.UiState ()
+gotChatsList :: [M.Chat] -> Maybe M.ChatId -> B.EventM C.Name C.UiState ()
 gotChatsList chats overrideSelect' = do
   C.stChatsList %= BL.listReplace (V.fromList chats) Nothing
 
@@ -566,7 +569,7 @@ gotChatsList chats overrideSelect' = do
   handleChatSelectionUpdate
 
 
-chatSend :: TV.TVar C.RunState -> C.AppConfig -> BCh.BChan C.UiEvent -> C.StoreWrapper -> C.ChatId -> C.ChatMessage -> IO ()
+chatSend :: TV.TVar C.RunState -> C.AppConfig -> BCh.BChan C.UiEvent -> Sr.StoreWrapper -> M.ChatId -> M.ChatMessage -> IO ()
 chatSend rs' cfg eventChan store chatId msg = do
   store.swGetChat chatId >>= \case
     Just (chat, hist1) -> do
@@ -576,7 +579,7 @@ chatSend rs' cfg eventChan store chatId msg = do
         , Deb.debounceAction = BCh.writeBChan eventChan $ C.UeChatUpdated chatId
         }
 
-      streamingMessageId <- liftIO $ C.MessageId <$> U.newUuidText
+      streamingMessageId <- liftIO $ M.MessageId <$> U.newUuidText
 
       let
         hist2 = hist1 <&> \m -> O.Message m.msgRole m.msgText Nothing Nothing
@@ -612,7 +615,7 @@ chatSend rs' cfg eventChan store chatId msg = do
                     debouncedUpdateUi
 
                 when (cr.done) $ do
-                  BCh.writeBChan eventChan $ C.UeChatStreamResponseDone chatId (Just $ U.messageDetailFromChatResponse cr)
+                  BCh.writeBChan eventChan $ C.UeChatStreamResponseDone chatId (Just $ M.messageDetailFromChatResponse cr)
                   atomically $ TV.modifyTVar' rs' $ \rs2 -> rs2 { C.rsKilledChats = Set.delete streamingMessageId rs2.rsKilledChats }
             , pure   ()
             )
@@ -634,15 +637,15 @@ chatSend rs' cfg eventChan store chatId msg = do
       pass
 
 
-refreshChatsList :: BCh.BChan C.UiEvent -> C.StoreWrapper -> Maybe (Either Text C.ChatId) -> IO ()
+refreshChatsList :: BCh.BChan C.UiEvent -> Sr.StoreWrapper -> Maybe (Either Text M.ChatId) -> IO ()
 refreshChatsList eventChan store overrideSelect1 = do
   chats1 <- store.swListChats
-  let chats = reverse $ sortOn (C.chatUpdatedAt) chats1
+  let chats = reverse $ sortOn (M.chatUpdatedAt) chats1
   let overrideSelect =
        case overrideSelect1 of
          Nothing -> Nothing
          Just (Right chatId) -> Just chatId
-         Just (Left chatIdent) -> C.chatId <$> find (\c -> (C.unChatId c.chatId) == chatIdent || c.chatName == chatIdent) chats
+         Just (Left chatIdent) -> M.chatId <$> find (\c -> (M.unChatId c.chatId) == chatIdent || c.chatName == chatIdent) chats
 
   BCh.writeBChan eventChan $ C.UeGotChatsList chats overrideSelect
 ----------------------------------------------------------------------------------------------------------------------

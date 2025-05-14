@@ -27,7 +27,7 @@ import Ollama qualified as O
 
 import Core qualified as C
 import Utils qualified as U
-import Widgets.Common as Wc
+import Widgets.Common qualified as Wc
 
 
 ----------------------------------------------------------------------------------------------------------------------
@@ -37,10 +37,10 @@ drawTabPs :: C.UiState -> B.Widget C.Name
 drawTabPs st =
   (
     B.vLimit 1 $ B.hBox [
-        col 70 "Name" "colHeader"
-      , col 11 "Size" "colHeader"
-      , col 11 "VRAM" "colHeader"
-      , col 40 "Expires" "colHeader"
+        Wc.col 70 "Name" "colHeader"
+      , Wc.col 11 "Size" "colHeader"
+      , Wc.col 11 "VRAM" "colHeader"
+      , Wc.col 40 "Expires" "colHeader"
       ]
   )
   <=>
@@ -56,10 +56,10 @@ drawTabPs st =
         age2 = U.timeSpanToHuman age1
       in
       B.vLimit 1 $ B.hBox [
-          colTb col 70 p.modelName ""
-        , colTe col 11 True (U.bytesToGb p.size_) ""
-        , colTe col 11 True (U.bytesToGb p.sizeVRam) ""
-        , colTe col 40 True age2 ""
+          Wc.colTb Wc.col 70 p.modelName ""
+        , Wc.colTe Wc.col 11 True (U.bytesToGb p.size_) ""
+        , Wc.colTe Wc.col 11 True (U.bytesToGb p.sizeVRam) ""
+        , Wc.colTe Wc.col 40 True age2 ""
         ]
 ----------------------------------------------------------------------------------------------------------------------
 

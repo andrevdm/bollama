@@ -32,7 +32,10 @@ import Core qualified as C
 import Draw qualified as D
 import Events qualified as E
 import Help qualified as H
-import Storage qualified as Sr
+import Logging qualified as L
+import Messages qualified as M
+import Storage.StoreImpl qualified as Sr
+import Storage.Store qualified as Sr
 import Theme qualified as T
 import Widgets.PopupEditChat qualified as WPce
 
@@ -72,7 +75,7 @@ runTuiMain = do
   store.swLog.lgInfo $ "Starting Bollama v" <> Cfg.verText
 
   -- Create a temporary chat
-  _ <- store.swNewChat C.SsNotStreaming "#Temp" (Cfg.defaultModel cfg) C.emptyChatParams
+  _ <- store.swNewChat M.SsNotStreaming "#Temp" (Cfg.defaultModel cfg) M.emptyChatParams
 
   let runState = C.RunState
        { C.rsKilledChats = mempty
@@ -103,7 +106,7 @@ runTuiMain = do
   initialVty <- buildVty
 
   now <- DT.getCurrentTime
-  let chatEditForm = WPce.mkPopChatEditForm C.emptyChatEditInfo
+  let chatEditForm = WPce.mkPopChatEditForm M.emptyChatEditInfo
 
 
   exportBrowser <- BFi.newFileBrowser (const True) C.NPopExportBrowser (cfg.acDefaultExportDir)
@@ -174,14 +177,14 @@ runTuiMain = do
        , _stPopExportDir = BE.editorText C.NPopExportDir (Just 1) (Txt.pack exportBrowserDir)
        , _stPopExportFName = BE.editorText C.NPopExportFileName (Just 1) ""
        , _stPopExportError = Nothing
-       , _stPopExportFormat = C.ExportText
+       , _stPopExportFormat = M.ExportText
        }
 
   _finalState <- B.customMain @C.Name initialVty buildVty (Just eventChan) app initialState
   pass
 
   where
-    catchEx :: C.StoreWrapper -> Text -> IO () -> IO ()
+    catchEx :: Sr.StoreWrapper -> Text -> IO () -> IO ()
     catchEx store n action = do
       catch
         action

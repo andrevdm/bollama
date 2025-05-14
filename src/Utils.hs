@@ -9,12 +9,7 @@ module Utils where
 import Verset
 import Brick qualified as B
 import Control.Lens ((.=), use)
-import Data.Aeson.Encode.Pretty qualified as Ae
-import Data.Aeson qualified as Ae
-import Data.ByteString.Lazy qualified as BSL
 import Data.List (findIndex)
-import Data.Text.Encoding qualified as TxtE
-import Data.Text.IO qualified as Txt
 import Data.Text qualified as Txt
 import Data.Time qualified as Dt
 import Data.UUID.V4 qualified as UU
@@ -101,23 +96,6 @@ newUuidText = do
   pure $ show uuid
 
 
-logLevelFilters :: [[C.LogLevel]]
-logLevelFilters =
-  [ [C.LlError]
-  , [C.LlWarn, C.LlError]
-  , [C.LlInfo, C.LlWarn, C.LlError]
-  , [C.LlDebug, C.LlInfo, C.LlWarn, C.LlError]
-  ]
-
-logLevelName :: C.LogLevel -> Text
-logLevelName C.LlDebug = "DEBUG"
-logLevelName C.LlInfo = "INFO"
-logLevelName C.LlWarn = "WARN"
-logLevelName C.LlError = "ERROR"
-logLevelName C.LlCritical = "CRITICAL"
-
-
-
 removeThink :: Text -> Text
 removeThink str =
   if not (Txt.isPrefixOf "<think>" str)
@@ -130,54 +108,6 @@ removeThink str =
 
 
 
-messageDetailFromChatResponse :: O.ChatResponse -> C.MessageDetail
-messageDetailFromChatResponse cr =
-  C.MessageDetail
-    { cdTotalDuration = fromIntegral <$> cr.totalDuration
-    , cdLoadDuration = fromIntegral <$> cr.loadDuration
-    , cdPromptEvalCount = fromIntegral <$> cr.promptEvalCount
-    , cdPromptEvalDuration = fromIntegral <$> cr.promptEvalDuration
-    , cdEvalCount = fromIntegral <$> cr.evalCount
-    , cdEvalDuration = fromIntegral <$> cr.evalDuration
-    }
-
-
-exportChatToFile :: C.Chat -> [C.ChatMessage] -> C.ExportFormat -> FilePath -> IO ()
-exportChatToFile chat ms fmt file = do
-  Txt.writeFile file $ exportChat chat ms fmt
-
-
-exportChat :: C.Chat -> [C.ChatMessage]  -> C.ExportFormat -> Text
-exportChat c ms C.ExportJson = exportChatJson c ms
-exportChat c ms C.ExportText = exportChatText c ms
-
-
-exportChatJson :: C.Chat -> [C.ChatMessage] -> Text
-exportChatJson c ms =
-  let
-    chat = Ae.object
-      [ ("id", Ae.toJSON $ C.unChatId c.chatId)
-      , ("name", Ae.toJSON c.chatName)
-      , ("createdAt", Ae.toJSON c.chatCreatedAt)
-      ]
-
-    chatMessages = ms <&> \m ->
-      Ae.object
-        [ ("id", Ae.toJSON $ C.unMessageId m.msgId)
-        , ("role", Ae.toJSON m.msgRole)
-        , ("model", Ae.toJSON m.msgModel)
-        , ("createdAt", Ae.toJSON m.msgCreatedAt)
-        , ("text", Ae.toJSON m.msgText)
-        ]
-
-    export = Ae.object
-      [ ("chat", chat)
-      , ("messages", Ae.toJSON chatMessages)
-      ]
-  in
-  TxtE.decodeUtf8 . BSL.toStrict . Ae.encodePretty $ export
-
-
 setFooterMessage :: Int -> Text -> B.EventM C.Name C.UiState ()
 setFooterMessage seconds msg = do
   now <- use C.stNow
@@ -185,33 +115,3 @@ setFooterMessage seconds msg = do
   C.stFooterMessage .= Just (until, msg)
 
 
-exportChatText :: C.Chat -> [C.ChatMessage] -> Text
-exportChatText c ms = Txt.unlines . concat $
-  [
-    [ "***************************************************************************************************************************"
-    , "# Name: " <> c.chatName
-    , " - ID: " <> show (C.unChatId c.chatId)
-    , " - Created: " <> show c.chatCreatedAt
-    , "***************************************************************************************************************************"
-    , ""
-    , ""
-    , ""
-    ]
-  ]
-  <>
-  ( ms <&> \m ->
-      [ "--------------------------------------------------------------------------------------------------------------"
-      , "# Role: " <> show m.msgRole
-      , " - ID: " <> show (C.unMessageId m.msgId)
-      , " - Model: " <> show m.msgModel
-      , " - Created: " <> show m.msgCreatedAt
-      , "--------------------------------------------------------------------------------------------------------------"
-      , ""
-      , m.msgText
-      , ""
-      , "--------------------------------------------------------------------------------------------------------------"
-      , ""
-      , ""
-      , ""
-      ]
-  )

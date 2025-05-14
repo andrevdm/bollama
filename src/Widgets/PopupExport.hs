@@ -30,6 +30,7 @@ import System.FilePath ((</>))
 import System.FilePath qualified as Fp
 
 import Core qualified as C
+import Messages qualified as M
 import Widgets.Common as Wc
 
 
@@ -48,9 +49,9 @@ drawPopupExport st =
       <=>
       (B.padTop (B.Pad 1) . B.vLimit 1 $ B.vLimit 1 (B.withAttr (B.attrName "colHeader") (B.txt "name: ") <+> BE.renderEditor (B.txt . Txt.unlines) (BF.focusGetCurrent st._stPopExportFocus == Just C.NPopExportFileName) st._stPopExportFName))
       <=>
-      (radio C.NPopExportFormatJson "JSON" 8 C.ExportJson C.stPopExportFormat)
+      (radio C.NPopExportFormatJson "JSON" 8 M.ExportJson C.stPopExportFormat)
       <=>
-      (radio C.NPopExportFormatText "Text" 8 C.ExportText C.stPopExportFormat)
+      (radio C.NPopExportFormatText "Text" 8 M.ExportText C.stPopExportFormat)
       <=>
       (case st._stPopExportError of
         Nothing -> B.emptyWidget
@@ -130,16 +131,16 @@ handleEventPopupExport _commandChan ev ve = do
           goToDir
 
         (Just C.NPopExportFormatJson, Vty.KEnter, []) -> do
-          C.stPopExportFormat .= C.ExportJson
+          C.stPopExportFormat .= M.ExportJson
 
         (Just C.NPopExportFormatJson, Vty.KChar ' ', []) -> do
-          C.stPopExportFormat .= C.ExportJson
+          C.stPopExportFormat .= M.ExportJson
 
         (Just C.NPopExportFormatText, Vty.KEnter, []) -> do
-          C.stPopExportFormat .= C.ExportText
+          C.stPopExportFormat .= M.ExportText
 
         (Just C.NPopExportFormatText, Vty.KChar ' ', []) -> do
-          C.stPopExportFormat .= C.ExportText
+          C.stPopExportFormat .= M.ExportText
 
         (Just C.NPopExportBrowser, _, _) -> do
           C.stPopExportError .= Nothing

@@ -25,6 +25,8 @@ import Data.Vector qualified as V
 import Graphics.Vty qualified as Vty
 
 import Core qualified as C
+import Logging qualified as L
+import Storage.Store qualified as Sr
 import Utils qualified as U
 import Widgets.Common (col)
 
@@ -44,7 +46,7 @@ drawTabLogs st =
   BL.renderList go True st._stLogList
 
   where
-    go :: Bool -> C.LogEntry -> B.Widget C.Name
+    go :: Bool -> L.LogEntry -> B.Widget C.Name
     go _ l =
       let dt = Txt.pack $ DT.formatTime DT.defaultTimeLocale "%Y-%m-%d %H:%M:%S" l.leTime
       in
@@ -83,20 +85,20 @@ handleTabLog _commandChan _ev ve _focused k ms = do
 
 
 
-logUpdated :: [C.LogEntry] -> (C.LogLevel, Text) -> B.EventM C.Name C.UiState ()
+logUpdated :: [L.LogEntry] -> (L.LogLevel, Text) -> B.EventM C.Name C.UiState ()
 logUpdated ls (lvl, msg) = do
   C.stLogList %= BL.listReplace (V.fromList ls) Nothing
   C.stLogList %= BL.listMoveToEnd
 
-  when (lvl `elem` [C.LlCritical, C.LlError, C.LlWarn]) $ do
-    U.setFooterMessage 10 $ (U.logLevelName lvl) <> ":" <> msg
+  when (lvl `elem` [L.LlCritical, L.LlError, L.LlWarn]) $ do
+    U.setFooterMessage 10 $ (L.logLevelName lvl) <> ":" <> msg
 
-  when (lvl `elem` [C.LlCritical, C.LlError]) $ do
+  when (lvl `elem` [L.LlCritical, L.LlError]) $ do
     C.stErrorMessage .= Just msg
 
 
 
-updateLog :: BCh.BChan C.UiEvent -> C.StoreWrapper -> C.LogLevel -> Text -> IO ()
+updateLog :: BCh.BChan C.UiEvent -> Sr.StoreWrapper -> L.LogLevel -> Text -> IO ()
 updateLog eventChan store l e = do
   ls <- store.swLog.lgReadLast 1000
   BCh.writeBChan eventChan $ C.UeLogUpdated ls (l, e)

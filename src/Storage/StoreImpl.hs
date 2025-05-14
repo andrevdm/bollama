@@ -6,7 +6,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE MultiWayIf #-}
 
-module Storage
+module Storage.StoreImpl
   ( newInMemStore
   , newStoreWrapper
   , newSqliteStore
@@ -28,40 +28,42 @@ import Ollama qualified as O
 import Text.Pretty.Simple (pPrint)
 import Text.RawString.QQ (r)
 
-import Core qualified as C
+import Messages qualified as M
+import Logging qualified as L
+import Storage.Store qualified as Sr
 import Utils qualified as U
 
 
-newFileLogger :: FilePath -> IO C.Logger
+newFileLogger :: FilePath -> IO L.Logger
 newFileLogger logPath = do
-  pure C.Logger
-    { C.lgWarn = \msg -> do
+  pure L.Logger
+    { L.lgWarn = \msg -> do
         now <- DT.getCurrentTime
         Txt.appendFile logPath $ show now <> " [WARN] " <> msg
-    , C.lgInfo = \msg -> do
+    , L.lgInfo = \msg -> do
         now <- DT.getCurrentTime
         Txt.appendFile logPath $ show now <> " [INFO] " <> msg
-    , C.lgDebug = \msg -> do
+    , L.lgDebug = \msg -> do
         now <- DT.getCurrentTime
         Txt.appendFile logPath $ show now <> " [DEBUG] " <> msg
-    , C.lgError = \msg -> do
+    , L.lgError = \msg -> do
         now <- DT.getCurrentTime
         Txt.appendFile logPath $ show now <> " [ERROR] " <> msg
-    , C.lgCritical = \msg -> do
+    , L.lgCritical = \msg -> do
         now <- DT.getCurrentTime
         Txt.appendFile logPath $ show now <> " [CRITICAL] " <> msg
-    , C.lgReadLast = \_i -> pure []
+    , L.lgReadLast = \_i -> pure []
     }
 
 
-newInMemStore :: IO C.Store
+newInMemStore :: IO Sr.Store
 newInMemStore = do
-  store :: TV.TVar (Map C.ChatId (C.Chat, [C.ChatMessage])) <- atomically $ TV.newTVar Map.empty
+  store :: TV.TVar (Map M.ChatId (M.Chat, [M.ChatMessage])) <- atomically $ TV.newTVar Map.empty
 
-  pure C.Store
+  pure Sr.Store
     { srListChats = do
         chats <- atomically $ Map.toList <$> TV.readTVar store
-        pure $ (\(k, (c, _)) -> c { C.chatId = k }) <$> chats
+        pure $ (\(k, (c, _)) -> c { M.chatId = k }) <$> chats
 
     , srLoadChat = \chatId -> do
         chats <- atomically $ TV.readTVar store
@@ -83,14 +85,14 @@ newInMemStore = do
           case Map.lookup chatId m of
             Nothing -> m
             Just (c, msgs) ->
-              Map.insert chatId (c { C.chatInput = "" }, msgs) m
+              Map.insert chatId (c { M.chatInput = "" }, msgs) m
 
     , srDeleteAllChatMessages = \chatId -> do
         atomically $ TV.modifyTVar' store $ \m ->
           case Map.lookup chatId m of
             Nothing -> m
             Just (c, _) ->
-              Map.insert chatId (c {C.chatInput = ""}, []) m
+              Map.insert chatId (c {M.chatInput = ""}, []) m
 
     , srDeleteChat = \chatId -> do
         atomically $ TV.modifyTVar' store $ \m ->
@@ -107,13 +109,13 @@ newInMemStore = do
 
 
 data WrapperState = WrapperState
-  { store :: !C.Store
-  , cache :: !(Map C.ChatId (C.Chat, [C.ChatMessage]))
-  , currentId :: !(Maybe C.ChatId)
+  { store :: !Sr.Store
+  , cache :: !(Map M.ChatId (M.Chat, [M.ChatMessage]))
+  , currentId :: !(Maybe M.ChatId)
   }
 
 
-newStoreWrapper :: (IO (C.Store, C.Logger)) -> IO C.StoreWrapper
+newStoreWrapper :: (IO (Sr.Store, L.Logger)) -> IO Sr.StoreWrapper
 newStoreWrapper mkStore = do
   (storeRaw, logger) <- mkStore
 
@@ -129,7 +131,7 @@ newStoreWrapper mkStore = do
 
   --TODO timer to call evict
 
-  let wrapper = C.StoreWrapper
+  let wrapper = Sr.StoreWrapper
        { swListChats = listChats st
        , swNewChat = newChat st
        , swGetChat = getChat st
@@ -151,7 +153,7 @@ newStoreWrapper mkStore = do
 
 
   where
-    deleteChat :: MVar' WrapperState -> C.ChatId -> IO ()
+    deleteChat :: MVar' WrapperState -> M.ChatId -> IO ()
     deleteChat st' chatId = do
       modifyMVar'_ st' $ \st -> do
         st.store.srDeleteChat chatId
@@ -160,7 +162,7 @@ newStoreWrapper mkStore = do
         pure $ st { cache = cache2 }
 
 
-    deleteAllChatMessages :: MVar' WrapperState -> C.ChatId -> IO ()
+    deleteAllChatMessages :: MVar' WrapperState -> M.ChatId -> IO ()
     deleteAllChatMessages st' chatId = do
       modifyMVar'_ st' $ \st -> do
         -- Delete all messages from the store
@@ -171,14 +173,14 @@ newStoreWrapper mkStore = do
         pure $ st { cache = cache2 }
 
 
-    listChats :: MVar' WrapperState -> IO [C.Chat]
+    listChats :: MVar' WrapperState -> IO [M.Chat]
     listChats st' = do
       withMVar' st' $ \st -> do
         -- Get the chats from the store
         stored <- st.store.srListChats
         -- Temp chats are not stored
         let tmp = mapMaybe (\(c, _) -> if Txt.isInfixOf "#" c.chatName then Just c else Nothing) (Map.elems st.cache)
-        pure . reverse . sortOn C.chatUpdatedAt $ stored <> tmp
+        pure . reverse . sortOn M.chatUpdatedAt $ stored <> tmp
 
 
     evict :: MVar' WrapperState -> a -> IO a
@@ -186,7 +188,7 @@ newStoreWrapper mkStore = do
       modifyMVar'_ st' $ \st -> do
         let vs2 = Map.filterWithKey
                   (\k (c, _) ->
-                    c.chatStreaming == C.SsStreaming
+                    c.chatStreaming == M.SsStreaming
                     || Just k == st.currentId
                     || Txt.isInfixOf "#" c.chatName
                   ) st.cache
@@ -195,7 +197,7 @@ newStoreWrapper mkStore = do
       pure a
 
 
-    newChat :: MVar' WrapperState -> C.StreamingState -> Text -> Text -> C.ChatParams -> IO C.Chat
+    newChat :: MVar' WrapperState -> M.StreamingState -> Text -> Text -> M.ChatParams -> IO M.Chat
     newChat st' streaming chatName'' chatModel'' chatParams = do
       chats <- listChats st'
 
@@ -209,18 +211,18 @@ newStoreWrapper mkStore = do
            Just _ -> chatName' <> "." <> dt
            Nothing -> chatName'
 
-      chatId <- C.ChatId <$> U.newUuidText
+      chatId <- M.ChatId <$> U.newUuidText
       now <- DT.getCurrentTime
 
-      let chat = C.Chat
-            { C.chatId = chatId
-            , C.chatName = chatName
-            , C.chatCreatedAt = now
-            , C.chatUpdatedAt = now
-            , C.chatModel = chatModel''
-            , C.chatParams = chatParams
-            , C.chatStreaming = streaming
-            , C.chatInput = ""
+      let chat = M.Chat
+            { M.chatId = chatId
+            , M.chatName = chatName
+            , M.chatCreatedAt = now
+            , M.chatUpdatedAt = now
+            , M.chatModel = chatModel''
+            , M.chatParams = chatParams
+            , M.chatStreaming = streaming
+            , M.chatInput = ""
             }
 
       modifyMVar'_ st' $ \st -> do
@@ -234,16 +236,16 @@ newStoreWrapper mkStore = do
 
       pure chat
 
-    saveChat :: MVar' WrapperState -> C.Chat -> IO ()
+    saveChat :: MVar' WrapperState -> M.Chat -> IO ()
     saveChat st' chat = do
       modifyMVar'_ st' $ \st -> do
         -- Update the cache with the new chat
         let cache2 = Map.adjust (\(c1, ms) ->
-             let c2 = c1 { C.chatName = chat.chatName
-                         , C.chatModel = chat.chatModel
-                         , C.chatUpdatedAt = chat.chatUpdatedAt
-                         , C.chatStreaming = chat.chatStreaming
-                         , C.chatInput = chat.chatInput
+             let c2 = c1 { M.chatName = chat.chatName
+                         , M.chatModel = chat.chatModel
+                         , M.chatUpdatedAt = chat.chatUpdatedAt
+                         , M.chatStreaming = chat.chatStreaming
+                         , M.chatInput = chat.chatInput
                          }
              in
              (c2, ms)) chat.chatId st.cache
@@ -256,11 +258,11 @@ newStoreWrapper mkStore = do
         pure st { cache = cache2 }
 
 
-    getChat :: MVar' WrapperState -> C.ChatId -> IO (Maybe (C.Chat, [C.ChatMessage]))
+    getChat :: MVar' WrapperState -> M.ChatId -> IO (Maybe (M.Chat, [M.ChatMessage]))
     getChat st' chatId = do
       withMVar' st' $ \st -> getChat' st chatId
 
-    getChat' :: WrapperState -> C.ChatId -> IO (Maybe (C.Chat, [C.ChatMessage]))
+    getChat' :: WrapperState -> M.ChatId -> IO (Maybe (M.Chat, [M.ChatMessage]))
     getChat' st chatId = do
       case Map.lookup chatId st.cache of
         Just (chat, ms) -> pure $ Just (chat, reverse ms)
@@ -270,7 +272,7 @@ newStoreWrapper mkStore = do
             Just (chat, ms) -> pure $ Just (chat, reverse ms)
 
 
-    setCurrent :: MVar' WrapperState -> Maybe C.ChatId -> IO (Maybe (C.Chat, [C.ChatMessage]))
+    setCurrent :: MVar' WrapperState -> Maybe M.ChatId -> IO (Maybe (M.Chat, [M.ChatMessage]))
     setCurrent st' chatId' = do
       modifyMVar' st' $ \st -> do
         let st2 = st { currentId = chatId' }
@@ -281,7 +283,7 @@ newStoreWrapper mkStore = do
         pure (st2, res)
 
 
-    getCurrent :: MVar' WrapperState -> IO (Maybe (C.ChatId, C.Chat, [C.ChatMessage]))
+    getCurrent :: MVar' WrapperState -> IO (Maybe (M.ChatId, M.Chat, [M.ChatMessage]))
     getCurrent st' = do
       modifyMVar' st' $ \st -> do
         case st.currentId of
@@ -311,18 +313,18 @@ newStoreWrapper mkStore = do
 
 
 
-    addMessage :: MVar' WrapperState -> C.ChatId -> O.Role -> C.StreamingState -> Text -> Text -> IO (Either Text C.ChatMessage)
+    addMessage :: MVar' WrapperState -> M.ChatId -> O.Role -> M.StreamingState -> Text -> Text -> IO (Either Text M.ChatMessage)
     addMessage st' chatId role streamingSts model text = do
       now <- DT.getCurrentTime
-      mid <- C.MessageId <$> U.newUuidText
-      let newMsg = C.ChatMessage
-            { C.msgChatId = chatId
-            , C.msgId = mid
-            , C.msgRole = role
-            , C.msgModel = model
-            , C.msgCreatedAt = now
-            , C.msgText = text
-            , C.msgDetail = Nothing
+      mid <- M.MessageId <$> U.newUuidText
+      let newMsg = M.ChatMessage
+            { M.msgChatId = chatId
+            , M.msgId = mid
+            , M.msgRole = role
+            , M.msgModel = model
+            , M.msgCreatedAt = now
+            , M.msgText = text
+            , M.msgDetail = Nothing
             }
 
       modifyMVar'_ st' $ \st -> do
@@ -331,7 +333,7 @@ newStoreWrapper mkStore = do
              Map.adjust
               (\(chat, ms1) ->
                 let ms2 = newMsg : ms1
-                    chat2 = chat { C.chatUpdatedAt = now, C.chatStreaming = streamingSts }
+                    chat2 = chat { M.chatUpdatedAt = now, M.chatStreaming = streamingSts }
                 in
                 (chat2, ms2)
                 )
@@ -345,7 +347,7 @@ newStoreWrapper mkStore = do
       pure . Right $ newMsg
 
 
-    addStreamedChatContent :: MVar' WrapperState -> C.ChatId -> C.MessageId -> O.Role -> Text -> IO (Either Text ())
+    addStreamedChatContent :: MVar' WrapperState -> M.ChatId -> M.MessageId -> O.Role -> Text -> IO (Either Text ())
     addStreamedChatContent st' chatId msgId role text = do
       modifyMVar' st' $ \st -> do
         current' <-
@@ -366,49 +368,49 @@ newStoreWrapper mkStore = do
                 (m : rest') | m.msgId == msgId -> pure (m, rest')
                 _ -> do
                   now <- DT.getCurrentTime
-                  pure ( C.ChatMessage
-                           { C.msgChatId = chatId
-                           , C.msgId = msgId
-                           , C.msgRole = role
-                           , C.msgModel = ""
-                           , C.msgCreatedAt = now
-                           , C.msgText = ""
-                           , C.msgDetail = Nothing
+                  pure ( M.ChatMessage
+                           { M.msgChatId = chatId
+                           , M.msgId = msgId
+                           , M.msgRole = role
+                           , M.msgModel = ""
+                           , M.msgCreatedAt = now
+                           , M.msgText = ""
+                           , M.msgDetail = Nothing
                            }
                        , ms1)
 
-            let current2 = current1 {C.msgText = C.msgText current1 <> text}
+            let current2 = current1 {M.msgText = M.msgText current1 <> text}
             let st2 = st { cache = Map.insert chatId (chat, current2 : rest) st.cache }
             pure (st2, Right ())
 
 
-    streamDone :: MVar' WrapperState -> C.ChatId -> Maybe C.MessageDetail -> IO ()
+    streamDone :: MVar' WrapperState -> M.ChatId -> Maybe M.MessageDetail -> IO ()
     streamDone st' chatId detail = do
       modifyMVar'_ st' $ \st -> do
         case Map.lookup chatId st.cache of
           Nothing -> pass
           Just (_, []) -> pass
-          Just (_, (m:_)) -> st.store.srSaveChatMessage $ m { C.msgDetail = detail }
+          Just (_, (m:_)) -> st.store.srSaveChatMessage $ m { M.msgDetail = detail }
 
         let cache2 = Map.adjust go chatId st.cache
         pure st { cache = cache2 }
 
       where
-        go (chat, ms) = (chat{ C.chatStreaming = C.SsNotStreaming }, ms)
+        go (chat, ms) = (chat{ M.chatStreaming = M.SsNotStreaming }, ms)
 
 
-    clearChatInput :: MVar' WrapperState -> C.ChatId -> IO (Either Text ())
+    clearChatInput :: MVar' WrapperState -> M.ChatId -> IO (Either Text ())
     clearChatInput st' chatId = do
       modifyMVar' st' $ \st -> do
         case Map.lookup chatId st.cache of
           Nothing -> pure (st, Right ())
           Just (chat, ms) -> do
-            let chat2 = chat { C.chatInput = "" }
+            let chat2 = chat { M.chatInput = "" }
             let st2 = st { cache = Map.insert chatId (chat2, ms) st.cache }
             pure (st2, Right ())
 
 
-    getMessageText :: MVar' WrapperState -> C.MessageId -> IO (Maybe Text)
+    getMessageText :: MVar' WrapperState -> M.MessageId -> IO (Maybe Text)
     getMessageText st' msgId = do
       withMVar' st' $ \st -> do
         let ms1 = Map.elems st.cache
@@ -448,7 +450,7 @@ instance Sq.FromRow MsgData where
 
 
 
-newSqliteStore :: FilePath -> (C.LogLevel -> Text -> IO ()) -> IO (C.Store, C.Logger)
+newSqliteStore :: FilePath -> (L.LogLevel -> Text -> IO ()) -> IO (Sr.Store, L.Logger)
 newSqliteStore dbPath onLog = do
   _ <- initDb
   now <- DT.getCurrentTime
@@ -458,28 +460,28 @@ newSqliteStore dbPath onLog = do
     -- TODO configure expires
     Sq.execute_ conn "DELETE FROM log WHERE createdAt < datetime('now', '-2 days')"
 
-  let store = C.Store
+  let store = Sr.Store
        { srListChats = do
            withConn $ \conn -> do
              chats :: [(Text, Text, Text, DT.UTCTime, DT.UTCTime, Maybe Int, Maybe Double, Maybe Text)] <-
                Sq.query_ conn "SELECT id, name, model, createdAt, updatedAt, prm_num_ctx, prm_temperature, chatInput FROM chat order by name"
 
              pure $ chats <&> \(chatId, chatName, chatModel, createdAt, updatedAt, num_ctx, temp, chatInput) ->
-               C.Chat
-                 { C.chatId = C.ChatId chatId
-                 , C.chatName = chatName
-                 , C.chatCreatedAt = createdAt
-                 , C.chatUpdatedAt = updatedAt
-                 , C.chatModel = chatModel
-                 , C.chatParams = C.ChatParams
-                     { C._cpTemp = temp
-                     , C._cpContextSize = num_ctx
+               M.Chat
+                 { M.chatId = M.ChatId chatId
+                 , M.chatName = chatName
+                 , M.chatCreatedAt = createdAt
+                 , M.chatUpdatedAt = updatedAt
+                 , M.chatModel = chatModel
+                 , M.chatParams = M.ChatParams
+                     { M._cpTemp = temp
+                     , M._cpContextSize = num_ctx
                      }
-                 , C.chatStreaming = C.SsNotStreaming
-                 , C.chatInput = fromMaybe "" chatInput
+                 , M.chatStreaming = M.SsNotStreaming
+                 , M.chatInput = fromMaybe "" chatInput
                  }
 
-       , srLoadChat = \(C.ChatId chatId) -> do
+       , srLoadChat = \(M.ChatId chatId) -> do
            withConn $ \conn -> do
              chat1 :: [(Text, Text, Text, DT.UTCTime, DT.UTCTime, Maybe Int, Maybe Double, Maybe Text)] <-
                Sq.query conn "SELECT id, name, model, createdAt, updatedAt, prm_num_ctx, prm_temperature, chatInput FROM chat WHERE id = ?" (Sq.Only chatId)
@@ -488,18 +490,18 @@ newSqliteStore dbPath onLog = do
                [] -> pure Nothing
                ((id, name, model, createdAt, updatedAt, num_ctx, temp, chatInput): _) -> do
                  let chat =
-                       C.Chat
-                         { C.chatId = C.ChatId id
-                         , C.chatName = name
-                         , C.chatCreatedAt = createdAt
-                         , C.chatUpdatedAt = updatedAt
-                         , C.chatModel = model
-                         , C.chatParams = C.ChatParams
-                             { C._cpTemp = temp
-                             , C._cpContextSize = num_ctx
+                       M.Chat
+                         { M.chatId = M.ChatId id
+                         , M.chatName = name
+                         , M.chatCreatedAt = createdAt
+                         , M.chatUpdatedAt = updatedAt
+                         , M.chatModel = model
+                         , M.chatParams = M.ChatParams
+                             { M._cpTemp = temp
+                             , M._cpContextSize = num_ctx
                              }
-                         , C.chatStreaming = C.SsNotStreaming
-                         , C.chatInput = fromMaybe "" chatInput
+                         , M.chatStreaming = M.SsNotStreaming
+                         , M.chatInput = fromMaybe "" chatInput
                          }
 
                  msgs1 :: [MsgData] <-
@@ -507,25 +509,25 @@ newSqliteStore dbPath onLog = do
 
                  let msgs =
                        msgs1 <&> \md ->
-                         C.ChatMessage
-                           { C.msgChatId = C.ChatId chatId
-                           , C.msgId = C.MessageId md.mdId
-                           , C.msgModel = md.mdModel
-                           , C.msgCreatedAt = md.mdCreatedAt
-                           , C.msgText = md.mdMsg
-                           , C.msgRole =
+                         M.ChatMessage
+                           { M.msgChatId = M.ChatId chatId
+                           , M.msgId = M.MessageId md.mdId
+                           , M.msgModel = md.mdModel
+                           , M.msgCreatedAt = md.mdCreatedAt
+                           , M.msgText = md.mdMsg
+                           , M.msgRole =
                                case Txt.toLower md.mdRole of
                                  "system" -> O.System
                                  "assistant" -> O.Assistant
                                  "tool" -> O.Tool
                                  _ -> O.User
-                           , C.msgDetail = Just C.MessageDetail
-                               { C.cdTotalDuration = md.mdTotalDuration
-                               , C.cdLoadDuration = md.mdLoadDuration
-                               , C.cdPromptEvalCount = md.mdPromptEvalCount
-                               , C.cdPromptEvalDuration = md.mdPromptEvalDuration
-                               , C.cdEvalCount = md.mdEvalCount
-                               , C.cdEvalDuration = md.mdEvalDuration
+                           , M.msgDetail = Just M.MessageDetail
+                               { M.cdTotalDuration = md.mdTotalDuration
+                               , M.cdLoadDuration = md.mdLoadDuration
+                               , M.cdPromptEvalCount = md.mdPromptEvalCount
+                               , M.cdPromptEvalDuration = md.mdPromptEvalDuration
+                               , M.cdEvalCount = md.mdEvalCount
+                               , M.cdEvalDuration = md.mdEvalDuration
                                }
                            }
 
@@ -535,7 +537,7 @@ newSqliteStore dbPath onLog = do
        , srSaveChat = \chat -> do
            withConn_ $ \conn -> do
              Sq.execute conn "INSERT OR REPLACE INTO chat (id, name, model, createdAt, updatedAt, prm_num_ctx, prm_temperature, chatInput) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-               ( chat.chatId & \(C.ChatId chatId) -> chatId
+               ( chat.chatId & \(M.ChatId chatId) -> chatId
                , chat.chatName
                , chat.chatModel
                , chat.chatCreatedAt
@@ -553,38 +555,38 @@ newSqliteStore dbPath onLog = do
                    VALUES
                      (:id, :chatId, :role, :model, :createdAt, :msg, :totalDuration, :loadDuration, :promptEvalCount, :promptEvalDuration, :evalCount, :evalDuration)
                |]
-              [ ":id" := (msg.msgId & \(C.MessageId msgId) -> msgId)
-              , ":chatId" := (msg.msgChatId & \(C.ChatId chatId) -> chatId)
+              [ ":id" := (msg.msgId & \(M.MessageId msgId) -> msgId)
+              , ":chatId" := (msg.msgChatId & \(M.ChatId chatId) -> chatId)
               , ":role" := (show @_ @Text msg.msgRole)
               , ":model" := msg.msgModel
               , ":createdAt" := msg.msgCreatedAt
               , ":msg" := msg.msgText
-              , ":totalDuration" := (C.cdTotalDuration <$> msg.msgDetail)
-              , ":loadDuration" := (C.cdLoadDuration <$> msg.msgDetail)
-              , ":promptEvalCount" := (C.cdPromptEvalCount <$> msg.msgDetail)
-              , ":promptEvalDuration" := (C.cdPromptEvalDuration <$> msg.msgDetail)
-              , ":evalCount" := (C.cdEvalCount <$> msg.msgDetail)
-              , ":evalDuration" := (C.cdEvalDuration <$> msg.msgDetail)
+              , ":totalDuration" := (M.cdTotalDuration <$> msg.msgDetail)
+              , ":loadDuration" := (M.cdLoadDuration <$> msg.msgDetail)
+              , ":promptEvalCount" := (M.cdPromptEvalCount <$> msg.msgDetail)
+              , ":promptEvalDuration" := (M.cdPromptEvalDuration <$> msg.msgDetail)
+              , ":evalCount" := (M.cdEvalCount <$> msg.msgDetail)
+              , ":evalDuration" := (M.cdEvalDuration <$> msg.msgDetail)
               ]
 
        , srClearChatInput = \chatId -> do
             withConn_ $ \conn -> do
-              Sq.execute conn "UPDATE chat SET chatInput = ? WHERE id = ?" (Nothing :: Maybe Text, chatId & \(C.ChatId cid) -> cid)
+              Sq.execute conn "UPDATE chat SET chatInput = ? WHERE id = ?" (Nothing :: Maybe Text, chatId & \(M.ChatId cid) -> cid)
 
        , srDeleteChat = \chatId -> do
             withConn_ $ \conn -> do
-              Sq.execute conn "DELETE FROM chatMessage WHERE chatId = ?" (chatId & \(C.ChatId cid) -> (Sq.Only cid))
-              Sq.execute conn "DELETE FROM chat WHERE id = ?" (chatId & \(C.ChatId cid) -> (Sq.Only cid))
+              Sq.execute conn "DELETE FROM chatMessage WHERE chatId = ?" (chatId & \(M.ChatId cid) -> (Sq.Only cid))
+              Sq.execute conn "DELETE FROM chat WHERE id = ?" (chatId & \(M.ChatId cid) -> (Sq.Only cid))
 
        , srDeleteAllChatMessages = \chatId -> do
             withConn_ $ \conn -> do
-              Sq.execute conn "DELETE FROM chatMessage WHERE chatId = ?" (chatId & \(C.ChatId cid) -> (Sq.Only cid))
-              Sq.execute conn "update chat set chatInput = null WHERE id = ?" (chatId & \(C.ChatId cid) -> (Sq.Only cid))
+              Sq.execute conn "DELETE FROM chatMessage WHERE chatId = ?" (chatId & \(M.ChatId cid) -> (Sq.Only cid))
+              Sq.execute conn "update chat set chatInput = null WHERE id = ?" (chatId & \(M.ChatId cid) -> (Sq.Only cid))
 
        , srGetMessageText = \msgId -> do
             withConn $ \conn -> do
               msgs :: [Sq.Only Text] <-
-                Sq.query conn "SELECT msg FROM chatMessage WHERE id = ?" (Sq.Only $ msgId & \(C.MessageId mid) -> mid)
+                Sq.query conn "SELECT msg FROM chatMessage WHERE id = ?" (Sq.Only $ msgId & \(M.MessageId mid) -> mid)
 
               pure $ case msgs of
                 [] -> Nothing
@@ -592,13 +594,13 @@ newSqliteStore dbPath onLog = do
        }
 
   let logger =
-       C.Logger
-         { C.lgWarn = \t -> insertLog sessionId C.LlWarn t >> onLog C.LlWarn t
-         , C.lgInfo = \t -> insertLog sessionId C.LlInfo t >> onLog C.LlInfo t
-         , C.lgDebug = \t -> insertLog sessionId C.LlDebug t >> onLog C.LlDebug t
-         , C.lgError = \t -> insertLog sessionId C.LlError t >> onLog C.LlError t
-         , C.lgCritical = \t -> insertLog sessionId C.LlCritical t >> onLog C.LlCritical t
-         , C.lgReadLast = readLogs sessionId
+       L.Logger
+         { L.lgWarn = \t -> insertLog sessionId L.LlWarn t >> onLog L.LlWarn t
+         , L.lgInfo = \t -> insertLog sessionId L.LlInfo t >> onLog L.LlInfo t
+         , L.lgDebug = \t -> insertLog sessionId L.LlDebug t >> onLog L.LlDebug t
+         , L.lgError = \t -> insertLog sessionId L.LlError t >> onLog L.LlError t
+         , L.lgCritical = \t -> insertLog sessionId L.LlCritical t >> onLog L.LlCritical t
+         , L.lgReadLast = readLogs sessionId
          }
 
 
@@ -640,23 +642,23 @@ newSqliteStore dbPath onLog = do
             Sq.execute conn "INSERT INTO log (sessionId, level, createdAt, msg) VALUES (?, ?, ?, ?)" (sessionId, level, now, msg)
         )
         (\(e :: SomeException) -> do
-          onLog C.LlCritical $ "Failed to insert log: \b" <> show e <> "\n\nOriginal log:\n" <> msg
+          onLog L.LlCritical $ "Failed to insert log: \b" <> show e <> "\n\nOriginal log:\n" <> msg
           pPrint e
           pure ()
         )
 
 
-    readLogs :: Text -> Int -> IO [C.LogEntry]
+    readLogs :: Text -> Int -> IO [L.LogEntry]
     readLogs sessionId n = do
       withConn $ \conn -> do
         logs :: [(Int, DT.UTCTime, Text)] <-
           Sq.query conn "SELECT level, createdAt, msg FROM log where sessionId = ? ORDER BY createdAt DESC LIMIT ?" (sessionId, n)
 
         pure $ logs <&> \(level, createdAt, msg) ->
-          C.LogEntry
-            { C.leLevel = fromMaybe C.LlError $ toEnumMay level
-            , C.leTime = createdAt
-            , C.leText = msg
+          L.LogEntry
+            { L.leLevel = fromMaybe L.LlError $ toEnumMay level
+            , L.leTime = createdAt
+            , L.leText = msg
             }
 
 
