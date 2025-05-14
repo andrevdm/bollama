@@ -56,6 +56,7 @@ import Config qualified as Cfg
 import Core qualified as C
 import Utils qualified as U
 import Widgets.Common as Wc
+import Widgets.PopupContextMenu qualified as WPctx
 import Widgets.PopupEditChat qualified as WPce
 
 
@@ -291,18 +292,18 @@ handleTabChat commandChan eventChan store ev ve focused k ms =
   where
     contextMenu = do
       let menuItems =
-           [ ("export", "Export chat")
-           , ("edit", "Edit chat")
-           , ("new", "New chat")
-           , ("think", "Toggle thinking")
-           , ("detail", "Toggle message detail")
-           , ("stop", "Stop chat")
-           , ("clear", "Remove all messages")
-           , ("delete", "Delete chat")
+           [ ("export", "e^xport chat")
+           , ("edit", "^edit chat")
+           , ("new", "^new chat")
+           , ("think", "^toggle thinking")
+           , ("detail", "toggle message detai^l")
+           , ("stop", "^stop chat")
+           , ("clear", "^remove all messages")
+           , ("delete", "^delete chat")
            ]
       C.stPopup .= Just C.PopupContext
       C.stPopContextTitle .= Just "Chat"
-      C.stPopContextList .= BL.list C.NPopContextList (V.fromList menuItems) 1
+      C.stPopContextList .= BL.list C.NPopContextList (V.fromList . WPctx.buildMenuItems $ menuItems) 1
       C.stPopContextOnOk .= \case
         "export" -> exportChat
         "edit" -> editModel "Edit chat"

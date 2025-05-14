@@ -212,6 +212,9 @@ defaultTheme = [r|
     radio                      , cornflower_blue       ,  -
     radioFocused               , black                 ,  cornflower_blue
 
+    accelKey                   , green                 ,  -
+    accelKeyFocused            , red                   ,  -
+
 
     -- fileBrowserAttr
     -- fileBrowserCurrentDirectoryAttr

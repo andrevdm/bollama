@@ -9,6 +9,7 @@
 module Widgets.PopupContextMenu
   ( drawPopupContext
   , handleEventPopupContext
+  , buildMenuItems
   ) where
 
 import Verset
@@ -21,6 +22,7 @@ import Brick.Widgets.Border.Style qualified as BBS
 import Brick.Widgets.Center qualified as BC
 import Brick.Widgets.List qualified as BL
 import Control.Lens ((.=), (%=))
+import Data.Text qualified as Txt
 import Data.Vector qualified as V
 import Graphics.Vty qualified as Vty
 
@@ -37,7 +39,8 @@ drawPopupContext st =
   B.hLimit 80 $
   Wc.borderWithLabel' True (fromMaybe "Context Menu" st._stPopContextTitle) $
   B.padAll 1 $
-  ( BL.renderList (\_ (_n, v) -> B.txt v) (BF.focusGetCurrent st._stPopContextFocus == Just C.NPopContextList) st._stPopContextList
+
+  ( BL.renderList renderMenuItem (BF.focusGetCurrent st._stPopContextFocus == Just C.NPopContextList) st._stPopContextList
     <=>
     ( B.padTop (B.Pad 2) . BC.hCenter $
       let
@@ -57,6 +60,22 @@ drawPopupContext st =
       )
     )
   )
+  where
+    renderMenuItem selected (_name, before, accel, after) =
+      let attr = if selected then "accelKeyFocused" else "accelKey" in
+      B.txt before <+> B.withAttr (B.attrName attr) (B.txt accel) <+> B.txt after
+
+
+buildMenuItems :: [(Text, Text)] -> [(Text, Text, Text, Text)]
+buildMenuItems ms =
+  ms <&> \(n, t1) ->
+    let
+      (tbefore, tafter') = Txt.breakOn "^" t1
+      accelLetter = Txt.take 1 . Txt.drop 1 $ tafter'
+      tafter = Txt.drop 2 tafter'
+    in
+    (n, tbefore, accelLetter, tafter)
+
 ---------------------------------------------------------------------------------------------------
 
 
@@ -87,6 +106,9 @@ handleEventPopupContext _commandChan _ev ve = do
         (Just C.NPopContextList, Vty.KEnter, []) -> do
           ok st
 
+        (Just C.NPopContextList, Vty.KChar c, []) | c `elem` (['a'..'z'] <> ['A'..'Z']) -> do
+          tryAccel st c
+
         (Just C.NPopContextList, _, _) -> do
           B.zoom C.stPopContextList $ BL.handleListEventVi BL.handleListEvent ve
 
@@ -101,10 +123,19 @@ handleEventPopupContext _commandChan _ev ve = do
     _ -> pass
 
   where
+    tryAccel st c =
+      let vs = V.toList $ BL.listElements st._stPopContextList
+      in
+      case find (\(_, _, a, _) -> a == (Txt.singleton c)) vs of
+        Nothing -> pass
+        Just (n, _, _, _) -> do
+          clear
+          st._stPopContextOnOk n
+
     ok st = do
       case BL.listSelectedElement st._stPopContextList of
         Nothing -> pass
-        Just (_, (n, _)) -> do
+        Just (_, (n, _, _, _)) -> do
           clear
           st._stPopContextOnOk n
 

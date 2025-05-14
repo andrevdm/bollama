@@ -2,6 +2,7 @@
 
 
 
+
 # BOllama
 
 Simple Ollama TUI
@@ -408,6 +409,9 @@ Here is the default theme
 
     radio                      , cornflower_blue       ,  -
     radioFocused               , black                 ,  cornflower_blue
+
+    accelKey                   , green                 ,  -
+    accelKeyFocused            , red                   ,  -
 
 
     -- fileBrowserAttr

@@ -161,7 +161,7 @@ data UiState = UiState
 
   , _stPopContextFocus :: !(BF.FocusRing Name)
   , _stPopContextTitle :: !(Maybe Text)
-  , _stPopContextList :: !(BL.List Name (Text, Text))
+  , _stPopContextList :: !(BL.List Name (Text, Text, Text, Text))
   , _stPopContextOnOk :: !(Text -> B.EventM Name UiState ())
 
   , _stPopExportFocus :: !(BF.FocusRing Name)
