@@ -1,0 +1,8 @@
+packages:
+  .
+
+
+source-repository-package
+  type: git
+  location: https://github.com/andrevdm/ollama-haskell.git
+ ttag: 7b43642b1e7153dcdb283c7baee30b181cf888ac
