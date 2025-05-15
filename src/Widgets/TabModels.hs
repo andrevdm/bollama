@@ -27,7 +27,6 @@ import Brick.Widgets.List qualified as BL
 import Control.Concurrent.Async (forConcurrently_)
 import Control.Exception.Safe (catch)
 import Control.Lens ((%=), (.=), (^?), (^.), at, use, to)
-import Data.List (findIndex)
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as Txt
 import Data.Text.Zipper qualified as TxtZ

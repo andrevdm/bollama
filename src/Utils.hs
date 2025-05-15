@@ -9,7 +9,6 @@ module Utils where
 import Verset
 import Brick qualified as B
 import Control.Lens ((.=), use)
-import Data.List (findIndex)
 import Data.Text qualified as Txt
 import Data.Time qualified as Dt
 import Data.UUID.V4 qualified as UU

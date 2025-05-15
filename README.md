@@ -4,6 +4,9 @@
 
 
 
+
+
+
 # BOllama
 
 Simple Ollama TUI
@@ -101,6 +104,8 @@ See the in app help (F1) for more details.
 
 NB this is formatted better in the app itself, this is here for reference only
 
+_(also note that the config paths will show actual paths when run in the app)_
+
 
 ---
 ---
@@ -114,7 +119,7 @@ NB this is formatted better in the app itself, this is here for reference only
 <div style='margin-left: 15px'>
 
 Bollama is a simple TUI for Ollama.
-  version: 0.1.0.18 beta
+  version: 0.1.0.19 beta
 
 
 
@@ -294,17 +299,17 @@ There are two configuration files
   1. theme.csv
   2. config.json
 
-  For linux config is in ~/.config/bollama/
+  These are stored in /home/$USER/.config/bollama
 
 The bollama state is stored in a sqlite database.
-  For linux this is usually ~/.local/share/bollama/bollama.db
+  This is located at: /home/$USER/.local/state/bollama/bollama.db
 
 ## Theme
 
 <div style='margin-left: 15px'>
 
 You can change the default theme by creating a file called `theme.csv` in the Bollama config directory.
- For linux this is usually ~/.config/bollama/theme.csv
+ This is located at /theme.csv
 
 The theme is a CSV file with the following format:
 
@@ -345,7 +350,7 @@ Where:
 
 - colours are either a #hex-code or a name. Known names are show on the `Colours` tab
     See https://rich.readthedocs.io/en/stable/appendix/colors.html
-- true colour is supported if your terminal supports it and has the correct terminfo
+- true colour is supported if your terminal supports it and has the correct terminfo 
     (e.g `TERM=tmux-256color` or `TERM=xterm-256color` and `COLORTERM=truecolor`).
     See https://github.com/termstandard/colors
 

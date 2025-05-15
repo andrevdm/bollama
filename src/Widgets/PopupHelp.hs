@@ -27,8 +27,8 @@ import Widgets.Common as Wc
 ---------------------------------------------------------------------------------------------------
 drawPopupHelp :: C.UiState -> B.Widget C.Name
 drawPopupHelp st =
-  let scrollTo = case st._stTab of
-        C.TabModels -> Just "models"
+  let _scrollTo = case st._stTab of
+        C.TabModels -> Just ("models"::Text)
         C.TabPs -> Just "ps"
         C.TabChat -> Just "chat"
         C.TabColours -> Just "colours"
@@ -40,7 +40,7 @@ drawPopupHelp st =
   B.withAttr (B.attrName "popupHelp") $
   B.padAll 1 $
   B.withClickableVScrollBars C.VScrollClick . B.withVScrollBarHandles . B.withVScrollBars B.OnRight $
-  B.viewport C.NHelpScroll B.Vertical $ H.renderHelp scrollTo H.helpContent
+  B.viewport C.NHelpScroll B.Vertical $ st._stHelp
 ---------------------------------------------------------------------------------------------------
 
 

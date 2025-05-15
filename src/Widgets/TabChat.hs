@@ -30,7 +30,6 @@ import Brick qualified as B
 import Brick.Widgets.Border qualified as BB
 import Brick.Widgets.Edit qualified as BE
 import Brick.Widgets.List qualified as BL
-import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TVar qualified as TV
 import Control.Debounce as Deb
 import Control.Exception.Safe (catch)

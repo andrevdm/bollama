@@ -15,7 +15,6 @@ module Storage.StoreImpl
 
 import Verset
 import Control.Concurrent.MVar.Strict (MVar', newMVar', modifyMVar', modifyMVar'_, withMVar')
-import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TVar qualified as TV
 import Control.Exception.Safe (finally, catch)
 import Database.SQLite.Simple (NamedParam(..))

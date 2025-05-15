@@ -17,7 +17,6 @@ import Brick.BChan qualified as BCh
 import Brick.Focus qualified as BF
 import Brick.Main qualified as BM
 import Brick qualified as B
-import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TVar qualified as TV
 import Control.Exception.Safe (catch)
 import Control.Lens ((.=), use)

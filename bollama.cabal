@@ -1,6 +1,6 @@
 cabal-version: 3.4
 name: bollama
-version: 0.1.0.18
+version: 0.1.0.19
 -- synopsis:
 -- description:
 license: MIT
@@ -60,7 +60,7 @@ library
     Paths_bollama
   build-depends:
     base >= 4.20 && < 5,
-    verset,
+    verset >= 0.0.1.10,
     aeson,
     aeson-pretty,
     async,
