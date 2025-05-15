@@ -111,6 +111,7 @@ data UiState = UiState
   , _stShowThinking :: !Bool
   , _stShowMessageDetail :: !Bool
   , _stRunState :: !(TV.TVar RunState)
+  , _stHelp :: !(B.Widget Name)
 
   , _stModels :: ![M.ModelItem]
   , _stModelsList :: !(BL.List Name M.ModelItem)

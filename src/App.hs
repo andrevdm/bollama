@@ -45,10 +45,12 @@ runTui = do
     ["--help"] -> showHelp
     [] -> runTuiMain
     ["helpMd"] -> do
-      let t = H.renderHelpAsMarkdown H.helpContent
+      h <- H.helpContent
+      let t = H.renderHelpAsMarkdown h
       putText t
     ["helpMd", path] -> do
-      let t = H.renderHelpAsMarkdown H.helpContent
+      h <- H.helpContent
+      let t = H.renderHelpAsMarkdown h
       Txt.writeFile path t
     _ -> do
       putText "Unknown argument"
@@ -112,6 +114,8 @@ runTuiMain = do
   exportBrowser <- BFi.newFileBrowser (const True) C.NPopExportBrowser (cfg.acDefaultExportDir)
   let exportBrowserDir = BFi.getWorkingDirectory exportBrowser
 
+  help <- H.helpContent
+
   let initialState = C.UiState
        { _stTick = 0
        , _stAppConfig = cfg
@@ -125,6 +129,7 @@ runTuiMain = do
        , _stShowThinking = False
        , _stShowMessageDetail = False
        , _stRunState = runState'
+       , _stHelp = H.renderHelp Nothing help
 
        , _stModels = []
        , _stModelsList = BL.list C.NModelsList mempty 1

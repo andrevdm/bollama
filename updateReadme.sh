@@ -29,6 +29,6 @@ echo "" > "/tmp/README_2.md"
 ./run.sh helpMd "/tmp/README_2.md"
 
 # Append the content of the second file to the output file
-cat /tmp/README_2.md >> "$output_file"
+sed "s|/home/$USER|/home/\\\$USER|g" /tmp/README_2.md >> "$output_file"
 
 cp "$output_file" README.md

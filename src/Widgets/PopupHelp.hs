@@ -18,7 +18,6 @@ import Control.Lens ((.=))
 import Graphics.Vty qualified as Vty
 
 import Core qualified as C
-import Help qualified as H
 import Widgets.Common as Wc
 
 
